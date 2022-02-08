@@ -1,0 +1,7 @@
+# depslib dependency file v1.0
+1582721438 source:c:\users\fisens_02\documents\codeblocks\fispec_demo_c\main.c
+	<stdio.h>
+	<stdlib.h>
+	<time.h>
+	<windows.h>
+
