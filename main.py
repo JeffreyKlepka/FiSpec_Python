@@ -1,15 +1,19 @@
 from socket import timeout
+from tkinter import E
+from tkinter.ttk import Separator
 import serial.tools.list_ports
 # import sys
 import time
 import numpy
-
+import codecs
+import os
+from ast import literal_eval
+ 
 ports=serial.tools.list_ports.comports()
-
 serialInst = serial.Serial()
-
 portList = []
 
+readBuf=1024
 for onePort in ports:
     portList.append(str(onePort))
     print(str(onePort))
@@ -18,7 +22,7 @@ if len(portList) == 0:
     print("No COM-ports found!")
 
 ser=serial.Serial(timeout=1)
-ser.port = 'COM5'
+ser.port = 'COM3'
 ser.baudrate = 3000000
 ser.bytesize = 8
 ser.parity = "N"
@@ -80,7 +84,7 @@ except:
 time.sleep(2) 
 integration_time=50000
 setIt_msg="iz," + str(integration_time) + ">"
-setIt_enc=setCh_msg.encode()#
+setIt_enc=setCh_msg.encode()
 try:
     ser.write(setIt_enc)
 except:
@@ -96,19 +100,33 @@ try:
 except:
         print("fail4...")
 
-
 time.sleep(2)  
 fbg_peak=[8200000, 8300000, 8400000, 8500000]
 fbg_ampl=[0, 0, 0, 0]
+if ser.is_open:
+    try:
+        ser.write("P>".encode())
+        print("Sende P-Befehl")
+    except:
+        print("Fail 4 ...")
+else:
+    print("COM-Port is closed. Try again!")
 
-try:
-    ser.write("P>".encode())
-except:
-        print("fail4...")
-# time.sleep(2)  
-try:
-    rcv_data=ser.read(1024)
-    rcv_data_dec=rcv_data.decode()
-    print(rcv_data_dec)
-except:
-    print("No data")
+
+
+rcv_data=ser.read_until('Ende')
+rcv_data_dec=str(rcv_data)
+meas_val=rcv_data_dec.split('\\x')
+for v in range(len(meas_val)):
+    x = meas_val[v].strip("'\\n\\r") #remove unwanted symbols
+    meas_val[v]=x
+    y = meas_val[v][0:2]
+    meas_val[v]=y
+
+print(rcv_data)
+print(meas_val)
+# data_enc=codecs.getencoder(rcv_data_dec)
+# print(data_enc)
+
+
+
