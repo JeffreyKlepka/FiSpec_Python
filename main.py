@@ -1,7 +1,7 @@
 
 import tkinter as tk
 from tkinter import *
-from turtle import color
+# from turtle import color
 import FiSpec_GUI as fsG
 import serial.tools.list_ports
 import threading
@@ -10,13 +10,19 @@ plt.use ('TkAgg')
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 from matplotlib.backend_bases import key_press_handler
 from matplotlib.figure import Figure
+import matplotlib.animation as animation
+from matplotlib import style
+
 from functools import partial
 # import sys
 import time
 import numpy as np
+
+LARGE_FONT=("Verdana, 12")
+style.use("ggplot")
+
 # import codecs
 # import os
-# from ast import literal_eval
 
 root=tk.Tk()
 root.title("FiSens - FiSpec. Coded with Python. Version 0.0.0")
@@ -25,19 +31,30 @@ root.geometry("1000x1000")
 measIsOn=False
 specIsOn=False
 
-
-xWll=[]
+xWll = []
 ySpec = []
 xLWL = []
-
 
 fsG1 = fsG.FiSpec_GUI(root)
 plotSize = (4, 3)
 fig = Figure(plotSize)
+fig.tight_layout()
+ax = fig.add_subplot(111)
+ax.set_title('Spectrum', fontsize=10)
+ax.set_facecolor('black')
+# ax.set_xlim(left=770, right=910)
+ax.set_ylim(bottom=0, top=10000)
+ax.set_xlabel('Wavelength [nm]', fontsize=8)
+ax.set_ylabel('Amplitude', fontsize=8)
+ax.grid(color='yellow')
+
 canvas = FigureCanvasTkAgg(fig, fsG1.frame_Plot)
+# canvas.show()
+canvas.get_tk_widget().pack(fill=tk.BOTH, expand=1) # display plot as a widget of tkinter
+canvas.draw()
 # toolbar = NavigationToolbar2Tk(canvas, fsG1.frame_Plot)
-# toolbar.pack(fill=tk.BOTH, expand=1)
 # toolbar.update()
+# toolbar.pack(fill=tk.BOTH, expand=True)
 
 fbg_count=4
 fbg_wavelength=[8200000, 8300000, 8400000, 8500000]
@@ -45,7 +62,7 @@ fbg_halfwidth= 15000
 
 readBuf=1024
 
-ser=serial.Serial(timeout=1)
+ser=serial.Serial(timeout=2)
 
 portObj = StringVar()
 portList = []
@@ -95,6 +112,7 @@ def connectCOM():
     ser.bytesize = 8
     ser.parity = "N"
     ser.stopbits = 1
+    # ser.timeout = None
     try:
         ser.open()
     except:
@@ -132,7 +150,7 @@ def connectCOM():
     checkWL()
 
 def checkWL():
-    global xWLL
+    global xWll
     try:
         ser.flushInput()
         ser.write("WLL>".encode())
@@ -251,23 +269,18 @@ def ctrlMeas():
 meas_Bt = Button(fsG1.frame_start_meas, text="Start Measurement", command=ctrlMeas)
 meas_Bt.place(x=150, y=0, width=120)
 
-def createSpectrum():
-    global fig, ax, ySpec, specIsOn
-
+def getSpecData():
+    global ySpec, specIsOn, ser
     if specIsOn==False:
         return
-    
-    xLWL.clear() # Delete old lists and canvas
-    ySpec.clear()
-    fig.clear()
-    canvas.get_tk_widget().forget()
-    # Send 's>'-command
+    ySpec.clear() #Delete old y-List
+        # Send 's>'-command
     if ser.is_open:
         ser.flushInput()
         try:
             ser.write("s>".encode())
         except:
-            print("Error: Spectrum Request")
+            print("Error: Spectrum Data Request")
     else:
         print("COM-Port is closed. Try again!")
         return
@@ -275,54 +288,33 @@ def createSpectrum():
     spec_data=ser.read_until('Ende') # Read incoming data
     spec_data_len=len(spec_data)
     spec_data_len2=int(spec_data_len/2)
-    # ySpec = []
-    
-    xWL = np.arange(780, 900, 120/spec_data_len2) # x-list has to have the same length as y-list
-    for wl in xWL:
-        xLWL.append(wl)
-    
     
     for i in range(spec_data_len2):
         try:
             ySpec.append(spec_data[2*i]+256*spec_data[2*i+1])
         except:
             pass
+    root.after(1000, getSpecData)
 
-    # for ampl in spec_data:
-    #     yAmpl.append(spec_data[ampl]) # Save incoming array as a list
-    
-    fig.tight_layout()
-    ax = fig.add_subplot() # Configure and create plot
-    
-    if len(xWll) > len(ySpec):
-        # x Liste kürzen, dann Plot
-        while(len(xWll) > len(ySpec)):
-            xWll.pop()
-        ax.plot(xWll, ySpec, c='green')
-    elif len(xWll) < len(ySpec):
-        # y Liste kürzen, dann Plot
-        while(len(xWll) < len(ySpec)):
-            ySpec.pop()
-        ax.plot(xWll, ySpec, c='green')
-    else:
-        ax.plot(xWll, ySpec, c='green')
-    
-    # ax.plot(xLWL, ySpec, c='green')
-    print(len(xWll))
-    print(len(ySpec))
-    ax.set_title('Spectrum', fontsize=10)
-    ax.set_facecolor('black')
-    # ax.set_xlim(left=770, right=910)
-    ax.set_ylim(bottom=0, top=10000)
-    ax.set_xlabel('Wavelength [nm]', fontsize=8)
-    ax.set_ylabel('Amplitude', fontsize=8)
-    ax.grid(color='yellow')
-    
-    
-    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=1) # display plot as a widget of tkinter
-    canvas.draw()
-    
-    root.after(10000, createSpectrum)
+def createSpectrum(interval):
+    global fig, ax, ySpec, specIsOn, xWll
+
+    try:
+        ax.clear()
+        ax.set_ylim(bottom=0, top=10000)
+        if len(xWll) > len(ySpec):
+            # y and x List have to have same dimension
+            while(len(xWll) > len(ySpec)):
+                xWll.pop()
+            ax.plot(xWll, ySpec, c='green')
+        elif len(xWll) < len(ySpec):
+            while(len(xWll) < len(ySpec)):
+                ySpec.pop()
+            ax.plot(xWll, ySpec, c='green')
+        else:
+            ax.plot(xWll, ySpec, c='green')
+    except:
+        pass
 
 def ctrlSpec():
     global specIsOn
@@ -333,13 +325,16 @@ def ctrlSpec():
     else:
         spec_Bt.config(text='Stop Spectrum')
         specIsOn=True
-        createSpectrum()
+        # createSpectrum()
+        getSpecData()
 
 spec_Bt = Button(fsG1.frame_start_spec, text="Start Spectrum", command=ctrlSpec)
 spec_Bt.place(x=150, y=0, width=120)   
 
 t_Controller = threading.Thread(target=checkCOMs).start()
 t_Meas_Controller = threading.Thread(target=measurement).start()
-t_Spec_Controller = threading.Thread(target=createSpectrum).start()
+t_Spec_Controller = threading.Thread(target=getSpecData).start()
+t_Spec_Plot = threading.Thread(target=createSpectrum)
 
+ani = animation.FuncAnimation(fig, createSpectrum, interval=2000)
 root.mainloop()
