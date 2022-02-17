@@ -13,8 +13,8 @@ class FiSpec_GUI:
         self.frame_start_spec = Frame(master)
         self.frame_start_spec.place(x=5,y=100, width=495, height=45)
 
-        self.frame_config = Frame(master)
-        self.frame_config.place(x=5,y=150, width=495, height=45)
+        self.frame_intgt = Frame(master)
+        self.frame_intgt.place(x=5,y=150, width=495, height=45)
         
         self.frame_Plot = Frame(master)
         self.frame_Plot.place(x=5,y=500, width=990, height=495)

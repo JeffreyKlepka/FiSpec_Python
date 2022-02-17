@@ -62,12 +62,12 @@ fbg_halfwidth= 15000
 
 readBuf=1024
 
-ser=serial.Serial(timeout=2)
+ser=serial.Serial()
 
 portObj = StringVar()
 portList = []
 ports=serial.tools.list_ports.comports()
-serialInst = serial.Serial()
+# serialInst = serial.Serial()
     
 for onePort in ports:
     portList.append(str(onePort)[0:4])
@@ -87,7 +87,7 @@ def checkCOMs():
     drop_COM.destroy()
     portList.clear()
     ports=serial.tools.list_ports.comports()
-    serialInst = serial.Serial()
+    # serialInst = serial.Serial()
     
     for onePort in ports:
         portList.append(str(onePort)[0:4])
@@ -112,7 +112,7 @@ def connectCOM():
     ser.bytesize = 8
     ser.parity = "N"
     ser.stopbits = 1
-    # ser.timeout = None
+    ser.timeout = 0.2
     try:
         ser.open()
     except:
@@ -145,7 +145,7 @@ def connectCOM():
     except:
         dev_available=0
         print("Error: No device found!")
-    
+    # configuration()
     ledON()
     checkWL()
 
@@ -166,8 +166,8 @@ def checkWL():
             xWll.append((wll_data[4*j] + 256*wll_data[4*j+1] + 65536*wll_data[4*j+2] + 16777216*wll_data[4*j+3])/10000)
         except:
             pass
-
     # print(xWll)
+
 connect_COM_Bt = Button(fsG1.frame_COM_select, text="Connect Port", command=connectCOM)
 connect_COM_Bt.place(x=150, y=2, width=120)
 
@@ -180,10 +180,7 @@ def configuration():
             ser.write(conf_msg.encode())
         except:
             print("Error: Configuration")
-        print(conf_msg)
-
-conf_Bt = Button(fsG1.frame_config, text="Configure", command=configuration)
-conf_Bt.place(x=150, y=2, width=120)
+        print("Device configured: " + conf_msg)
 
 def setChannel():
     setCh_msg="KA," + str(fbg_count) + ">"
@@ -195,11 +192,11 @@ def setChannel():
 
 def ledON():
     try:
-        ser.flushInput()
         ser.write("LED,1>".encode())
+        print("Turn on internal LED")
     except:
         print("Error: LED")
-    time.sleep(2)
+    # time.sleep(2)
 
 def startInternal():
     try:
@@ -208,13 +205,27 @@ def startInternal():
         print("Error: Start internal Measurement")
 
 def integration():
-    integration_time=50000 #Eingabefeld, mit Button übernehmen
-    setIt_msg="iz," + str(integration_time) + ">"
-    setIt_enc=setIt_msg.encode()
+    integration_time=intT_In.get() #Eingabefeld, mit Button übernehmen
     try:
-        ser.write(setIt_enc)
+        intT_Value=int(integration_time)
     except:
-        print("Error: Integration time")
+        print("Not a number!")
+        return
+    if type(intT_Value) == int:
+
+        setIt_msg="iz," + str(integration_time) + ">"
+        setIt_enc=setIt_msg.encode()
+        try:
+            ser.write(setIt_enc)
+        except:
+            print("Error: Integration time")
+
+intT_In = Entry(fsG1.frame_intgt, width=20)
+intT_In.place(x=15, y=2)
+intT_In.insert(0, "50000")
+
+intT_Bt = Button(fsG1.frame_intgt, text="Set Integration Time", command=integration)
+intT_Bt.place(x=150, y=0, width=120)
 
 def measurement():
     global ser
@@ -267,16 +278,14 @@ def ctrlMeas():
         measurement()
 
 meas_Bt = Button(fsG1.frame_start_meas, text="Start Measurement", command=ctrlMeas)
-meas_Bt.place(x=150, y=0, width=120)
+meas_Bt.place(x=150, y=2, width=120)
 
 def getSpecData():
     global ySpec, specIsOn, ser
-    if specIsOn==False:
-        return
+    
     ySpec.clear() #Delete old y-List
         # Send 's>'-command
     if ser.is_open:
-        ser.flushInput()
         try:
             ser.write("s>".encode())
         except:
@@ -294,27 +303,31 @@ def getSpecData():
             ySpec.append(spec_data[2*i]+256*spec_data[2*i+1])
         except:
             pass
-    root.after(1000, getSpecData)
 
 def createSpectrum(interval):
-    global fig, ax, ySpec, specIsOn, xWll
+    global fig, ax, specIsOn, ySpec, xWll
 
-    try:
+    if specIsOn==False:
+        return
+    elif specIsOn == True:
+        getSpecData()
         ax.clear()
-        ax.set_ylim(bottom=0, top=10000)
-        if len(xWll) > len(ySpec):
-            # y and x List have to have same dimension
-            while(len(xWll) > len(ySpec)):
-                xWll.pop()
-            ax.plot(xWll, ySpec, c='green')
-        elif len(xWll) < len(ySpec):
-            while(len(xWll) < len(ySpec)):
-                ySpec.pop()
-            ax.plot(xWll, ySpec, c='green')
-        else:
-            ax.plot(xWll, ySpec, c='green')
-    except:
-        pass
+        try:
+            # ax.set_ylim(bottom=0, top=10000)
+            if len(xWll) > len(ySpec):
+                # y and x List have to have same dimension
+                while(len(xWll) > len(ySpec)):
+                    xWll.pop()
+                ax.plot(xWll, ySpec, c='green')
+            elif len(xWll) < len(ySpec):
+                while(len(xWll) < len(ySpec)):
+                    ySpec.pop()
+                ax.plot(xWll, ySpec, c='green')
+            else:
+                ax.plot(xWll, ySpec, c='green')
+        except:
+            pass
+    
 
 def ctrlSpec():
     global specIsOn
@@ -326,15 +339,17 @@ def ctrlSpec():
         spec_Bt.config(text='Stop Spectrum')
         specIsOn=True
         # createSpectrum()
-        getSpecData()
+        # getSpecData()
 
 spec_Bt = Button(fsG1.frame_start_spec, text="Start Spectrum", command=ctrlSpec)
-spec_Bt.place(x=150, y=0, width=120)   
+spec_Bt.place(x=150, y=2, width=120)   
 
 t_Controller = threading.Thread(target=checkCOMs).start()
 t_Meas_Controller = threading.Thread(target=measurement).start()
-t_Spec_Controller = threading.Thread(target=getSpecData).start()
-t_Spec_Plot = threading.Thread(target=createSpectrum)
+# t_Spec_Controller = threading.Thread(target=getSpecData, daemon=True).start()
+# t_Spec_Controller.daemon = True
+t_Spec_Plot = threading.Thread(target=createSpectrum, daemon=True)
 
-ani = animation.FuncAnimation(fig, createSpectrum, interval=2000)
+
+ani = animation.FuncAnimation(fig, createSpectrum, interval=1000)
 root.mainloop()
