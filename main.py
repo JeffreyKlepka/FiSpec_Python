@@ -1,6 +1,10 @@
 
 import tkinter as tk
-from tkinter import *
+from tkinter import Button
+# from tkinter import Label
+from tkinter import Entry
+from tkinter import OptionMenu
+from tkinter import StringVar
 # from turtle import color
 import FiSpec_GUI as fsG
 import serial.tools.list_ports
@@ -12,17 +16,13 @@ from matplotlib.backend_bases import key_press_handler
 from matplotlib.figure import Figure
 import matplotlib.animation as animation
 from matplotlib import style
-
 from functools import partial
-# import sys
 import time
 import numpy as np
 
 LARGE_FONT=("Verdana, 12")
 style.use("ggplot")
 
-# import codecs
-# import os
 
 root=tk.Tk()
 root.title("FiSens - FiSpec. Coded with Python. Version 0.0.0")
@@ -64,27 +64,27 @@ readBuf=1024
 
 ser=serial.Serial()
 
-portObj = StringVar()
+# portObj = StringVar()
+'''
 portList = []
 ports=serial.tools.list_ports.comports()
-# serialInst = serial.Serial()
     
 for onePort in ports:
     portList.append(str(onePort)[0:4])
 try:
-    portObj.set(portList[0])
+    fsG1.portObj.set(portList[0])
 except:
     # if len(portList) == 0:
     portList.append("No devices found!")
-    portObj.set(portList[0])
+    fsG1.portObj.set(portList[0])
     print("No devices found!")
-drop_COM = OptionMenu(fsG1.frame_COM_select, portObj, *portList)
-drop_COM.grid(row=0, column=0)
+
+fsG1.drop_COM.configure(fsG1.portObj, *portList)
 
 def checkCOMs():
     global portObj, portList, drop_COM
     
-    drop_COM.destroy()
+    # fsG1.drop_COM.destroy()
     portList.clear()
     ports=serial.tools.list_ports.comports()
     # serialInst = serial.Serial()
@@ -100,19 +100,24 @@ def checkCOMs():
         portList.append("No devices found!")
         portObj.set(portList[0])
         print("No devices found!")
-    drop_COM = OptionMenu(fsG1.frame_COM_select, portObj, *portList)
-    drop_COM.grid(row=0, column=0)
+    fsG1.drop_COM.configure(fsG1.portObj, *portList)
+    
+    root.after(2000, checkCOMs)
+'''
+def checkCOMs():
+    fsG1.checkCOMS()
     root.after(2000, checkCOMs)
 
 def connectCOM():
     global ser
     
-    ser.port = portObj.get()
+    ser.port = fsG1.portObj.get()
     ser.baudrate = 3000000
     ser.bytesize = 8
     ser.parity = "N"
     ser.stopbits = 1
-    ser.timeout = 0.2
+    ser.timeout = 0.25
+    # ser.xonxoff = True
     try:
         ser.open()
     except:
@@ -145,9 +150,31 @@ def connectCOM():
     except:
         dev_available=0
         print("Error: No device found!")
-    # configuration()
+    configuration()
     ledON()
     checkWL()
+
+fsG1.connect_COM_Bt.configure(command=connectCOM)
+
+def configuration():
+    for x in range(len(fbg_wavelength)):
+        ma1=fbg_wavelength[x]-fbg_halfwidth
+        ma2=fbg_wavelength[x]+fbg_halfwidth
+        conf_msg="Ke," + str(x) + "," + str(ma1) + "," + str(ma2) + ">"
+        try:
+            ser.write(conf_msg.encode())
+        except:
+            print("Error: Configuration")
+        print("Device configured: " + conf_msg)
+        time.sleep(0.5)
+
+def ledON():
+    try:
+        ser.write("LED,1>".encode())
+        print("Turn on internal LED")
+    except:
+        print("Error: LED")
+    time.sleep(0.5)
 
 def checkWL():
     global xWll
@@ -166,46 +193,16 @@ def checkWL():
             xWll.append((wll_data[4*j] + 256*wll_data[4*j+1] + 65536*wll_data[4*j+2] + 16777216*wll_data[4*j+3])/10000)
         except:
             pass
-    # print(xWll)
-
-connect_COM_Bt = Button(fsG1.frame_COM_select, text="Connect Port", command=connectCOM)
-connect_COM_Bt.place(x=150, y=2, width=120)
-
-def configuration():
-    for x in range(len(fbg_wavelength)):
-        ma1=fbg_wavelength[x]-fbg_halfwidth
-        ma2=fbg_wavelength[x]+fbg_halfwidth
-        conf_msg="Ke," + str(x) + "," + str(ma1) + "," + str(ma2) + ">"
-        try:
-            ser.write(conf_msg.encode())
-        except:
-            print("Error: Configuration")
-        print("Device configured: " + conf_msg)
-
-def setChannel():
-    setCh_msg="KA," + str(fbg_count) + ">"
-    setCh_enc=setCh_msg.encode()
-    try:
-        ser.write(setCh_enc)
-    except:
-        print("Error: Channel")
-
-def ledON():
-    try:
-        ser.write("LED,1>".encode())
-        print("Turn on internal LED")
-    except:
-        print("Error: LED")
-    # time.sleep(2)
-
+    
 def startInternal():
     try:
         ser.write("a>".encode())
     except:
         print("Error: Start internal Measurement")
+    time.sleep(0.5)
 
 def integration():
-    integration_time=intT_In.get() #Eingabefeld, mit Button übernehmen
+    integration_time=fsG1.intT_In.get() #Eingabefeld, mit Button übernehmen
     try:
         intT_Value=int(integration_time)
     except:
@@ -220,18 +217,83 @@ def integration():
         except:
             print("Error: Integration time")
 
-intT_In = Entry(fsG1.frame_intgt, width=20)
-intT_In.place(x=15, y=2)
-intT_In.insert(0, "50000")
+fsG1.intT_Bt.configure(command=integration)
 
-intT_Bt = Button(fsG1.frame_intgt, text="Set Integration Time", command=integration)
-intT_Bt.place(x=150, y=0, width=120)
+def setChannel():
+    # Set number of active Channels
+    fbg_count=fsG1.setCh_In.get()
+    try:
+        fbg_count_value=int(fbg_count)
+    except:
+        print("Not a number!")
+    if type(fbg_count_value)==int:
+    
+        setCh_msg="KA," + str(fbg_count_value) + ">"
+        setCh_enc=setCh_msg.encode()
+        try:
+            ser.write(setCh_enc)
+        except:
+            print("Error: Channel")
+
+fsG1.setCh_Bt.configure(command=setChannel)
+
+def setAveraging():
+
+    aver=fsG1.setAv_In.get()
+    try:
+        aver_value=int(aver)
+    except:
+        print("Not a number!")
+    if type(aver)==int:
+    
+        setAv_msg="m," + str(aver_value) + ">"
+        setAv_enc=setAv_msg.encode()
+        try:
+            ser.write(setAv_enc)
+        except:
+            print("Error: Averaging")
+
+fsG1.setAv_Bt.configure(command=setAveraging)
+
+def setZero():
+    zVal=fsG1.setZe_In.get()
+    try:
+        zVal_=int(zVal)
+    except:
+        print("Not a number!")
+    if type(zVal_)==int:
+    
+        setZe_msg="OBN," + str(zVal_) + ">"
+        setZe_enc=setZe_msg.encode()
+        try:
+            ser.write(setZe_enc)
+        except:
+            print("Error: Set Zero Values")
+
+fsG1.setZe_Bt.configure(command=setZero)
+
+def setAutoOpt():
+    vAO=fsG1.setZe_In.get()
+    try:
+        vAO_=int(vAO)
+    except:
+        print("Not a number!")
+    if type(vAO_)==int:
+    
+        vAO_msg="OBN," + str(vAO_) + ">"
+        vAO_enc=vAO_msg.encode()
+        try:
+            ser.write(vAO_enc)
+        except:
+            print("Error: Set Zero Values")
+
+fsG1.setAO_Bt.configure(command=setAutoOpt)
 
 def measurement():
-    global ser
+    global ser, t_Spec_Controller, t_Spec_Plot
     fbg_peak=[8200000, 8300000, 8400000, 8500000]
     fbg_ampl=[0, 0, 0, 0]
-
+    
     if measIsOn == False:
         return
 
@@ -254,7 +316,7 @@ def measurement():
             fbg_ampl[i] = (rcv_data[8*i+4] + 256*rcv_data[8*i+5] + 65536*rcv_data[8*i+6] + 16777216*rcv_data[8*i+7])/10000
             print("Messwerte " + str(i+1) + ": " + str(fbg_peak[i]) + ", " + str(fbg_ampl[i]))
         except:
-            print("Error: Data incomplete")
+            print("Error: No Data")
 
     fsG1.label_Peak1.configure(text="Peak 1: " + str(fbg_peak[0]))
     fsG1.label_Peak2.configure(text="Peak 2: " + str(fbg_peak[1]))
@@ -270,22 +332,23 @@ def ctrlMeas():
     global specIsOn, measIsOn
 
     if measIsOn:
-        meas_Bt.config(text='Start Measurement')
+        fsG1.meas_Bt.config(text='Start Measurement')
         measIsOn=False
     else:
-        meas_Bt.config(text='Stop Measurement')
+        fsG1.meas_Bt.config(text='Stop Measurement')
         measIsOn=True
         measurement()
 
-meas_Bt = Button(fsG1.frame_start_meas, text="Start Measurement", command=ctrlMeas)
-meas_Bt.place(x=150, y=2, width=120)
+fsG1.meas_Bt.configure(command=ctrlMeas)
 
 def getSpecData():
     global ySpec, specIsOn, ser
     
     ySpec.clear() #Delete old y-List
-        # Send 's>'-command
-    if ser.is_open:
+    # Send 's>'-command
+    if specIsOn==False:
+            return
+    elif ser.is_open:
         try:
             ser.write("s>".encode())
         except:
@@ -303,17 +366,20 @@ def getSpecData():
             ySpec.append(spec_data[2*i]+256*spec_data[2*i+1])
         except:
             pass
-
+        
 def createSpectrum(interval):
     global fig, ax, specIsOn, ySpec, xWll
 
     if specIsOn==False:
         return
     elif specIsOn == True:
+        
         getSpecData()
         ax.clear()
         try:
-            # ax.set_ylim(bottom=0, top=10000)
+            ax.set_ylim(bottom=0, top=10000)
+            # if len(xWll) < 2000:
+            #     checkWL()
             if len(xWll) > len(ySpec):
                 # y and x List have to have same dimension
                 while(len(xWll) > len(ySpec)):
@@ -328,28 +394,23 @@ def createSpectrum(interval):
         except:
             pass
     
-
 def ctrlSpec():
     global specIsOn
 
     if specIsOn:
-        spec_Bt.config(text='Start Spectrum')
+        fsG1.spec_Bt.config(text='Start Spectrum')
         specIsOn=False
     else:
-        spec_Bt.config(text='Stop Spectrum')
+        fsG1.spec_Bt.config(text='Stop Spectrum')
         specIsOn=True
-        # createSpectrum()
-        # getSpecData()
 
-spec_Bt = Button(fsG1.frame_start_spec, text="Start Spectrum", command=ctrlSpec)
-spec_Bt.place(x=150, y=2, width=120)   
-
+fsG1.spec_Bt.configure(command=ctrlSpec)
+  
 t_Controller = threading.Thread(target=checkCOMs).start()
-t_Meas_Controller = threading.Thread(target=measurement).start()
-# t_Spec_Controller = threading.Thread(target=getSpecData, daemon=True).start()
+t_Meas_Controller = threading.Thread(target=measurement)
+t_Spec_Controller = threading.Thread(target=getSpecData)
 # t_Spec_Controller.daemon = True
-t_Spec_Plot = threading.Thread(target=createSpectrum, daemon=True)
-
+t_Spec_Plot = threading.Thread(target=createSpectrum)
 
 ani = animation.FuncAnimation(fig, createSpectrum, interval=1000)
 root.mainloop()
