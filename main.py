@@ -66,6 +66,7 @@ def connectCOM():
     ser.parity = "N"
     ser.stopbits = 1
     ser.timeout = 0.25
+    # ser.write_timeout = 0.25
     # ser.xonxoff = True
     try:
         ser.open()
@@ -276,7 +277,7 @@ def setAutoOpt():
 fsG1.setAO_Bt.configure(command=setAutoOpt)
 
 def measurement():
-    global ser, t_Spec_Controller, t_Spec_Plot
+    global ser
     fbg_peak=[8200000, 8300000, 8400000, 8500000]
     fbg_ampl=[0, 0, 0, 0]
     
@@ -312,10 +313,12 @@ def measurement():
     fsG1.label_Ampl2.configure(text="Amplitude 2: " + str(fbg_ampl[1]))
     fsG1.label_Ampl3.configure(text="Amplitude 3: " + str(fbg_ampl[2]))
     fsG1.label_Ampl4.configure(text="Amplitude 4: " + str(fbg_ampl[3]))
+
     root.after(1000, measurement)
+    
 
 def ctrlMeas():
-    global specIsOn, measIsOn
+    global specIsOn, measIsOn, t_Meas_Controller
 
     if measIsOn:
         fsG1.meas_Bt.config(text='Start Measurement')
@@ -323,44 +326,48 @@ def ctrlMeas():
     else:
         fsG1.meas_Bt.config(text='Stop Measurement')
         measIsOn=True
-        measurement()
-
+        t_measurement.start()
+        # t_Meas_Controller.join()
+    
 fsG1.meas_Bt.configure(command=ctrlMeas)
 
 def getSpecData():
     global ySpec, specIsOn, ser
     
-    ySpec.clear() #Delete old y-List
-    # Send 's>'-command
-    if specIsOn==False:
+    while 1:
+        ySpec.clear() #Delete old y-List
+        # Send 's>'-command
+        if specIsOn==False:
             return
-    elif ser.is_open:
-        try:
-            ser.write("s>".encode())
-        except:
-            print("Error: Spectrum Data Request")
-    else:
-        print("COM-Port is closed. Try again!")
-        return
+        elif ser.is_open:
+            try:
+                ser.write("s>".encode())
+            except:
+                print("Error: Spectrum Data Request")
+        else:
+            print("COM-Port is closed. Try again!")
+            return
     
-    spec_data=ser.read_until('Ende') # Read incoming data
-    spec_data_len=len(spec_data)
-    spec_data_len2=int(spec_data_len/2)
+        spec_data=ser.read_until('Ende') # Read incoming data
+        spec_data_len=len(spec_data)
+        spec_data_len2=int(spec_data_len/2)
     
-    for i in range(spec_data_len2):
-        try:
-            ySpec.append(spec_data[2*i]+256*spec_data[2*i+1])
-        except:
-            pass
+        for i in range(spec_data_len2):
+            try:
+                ySpec.append(spec_data[2*i]+256*spec_data[2*i+1])
+            except:
+                pass
+        time.sleep(0.5)
         
 def createSpectrum(interval):
-    global fig, ax, specIsOn, ySpec, xWll
+    global fig, ax, specIsOn, ySpec, xWll, t_getSpecData
 
     if specIsOn==False:
         return
     elif specIsOn == True:
-        
-        getSpecData()
+        t_getSpecData.start()
+        t_getSpecData.join()
+        # getSpecData()
         ax.clear()
         try:
             ax.set_ylim(bottom=0, top=20000)
@@ -381,7 +388,7 @@ def createSpectrum(interval):
             pass
     
 def ctrlSpec():
-    global specIsOn
+    global specIsOn, t_createSpectrum
 
     if specIsOn:
         fsG1.spec_Bt.config(text='Start Spectrum')
@@ -389,15 +396,18 @@ def ctrlSpec():
     else:
         fsG1.spec_Bt.config(text='Stop Spectrum')
         specIsOn=True
-        createSpectrum(10000)
+        # t_createSpectrum.start()
+        # t_getSpecData.start()
+        # t_getSpecData.join()
+        #root.after(1000, ctrlMeas)
 
 fsG1.spec_Bt.configure(command=ctrlSpec)
   
 t_Controller = threading.Thread(target=checkCOMs).start()
-t_Meas_Controller = threading.Thread(target=measurement)
-# t_Spec_Controller = threading.Thread(target=getSpecData)
+t_measurement = threading.Thread(target=measurement)
+t_getSpecData = threading.Thread(target=getSpecData)
 # t_Spec_Controller.daemon = True
-t_Spec_Plot = threading.Thread(target=createSpectrum)
+t_createSpectrum = threading.Thread(target=createSpectrum, args=(1000,))
 
-ani = animation.FuncAnimation(fig, createSpectrum, interval=10000)
+ani = animation.FuncAnimation(fig, createSpectrum, interval=1000)
 root.mainloop()
