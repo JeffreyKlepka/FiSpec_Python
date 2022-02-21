@@ -1,30 +1,23 @@
-
 import tkinter as tk
-from tkinter import Button
-# from tkinter import Label
-from tkinter import Entry
-from tkinter import OptionMenu
-from tkinter import StringVar
-# from turtle import color
 import FiSpec_GUI as fsG
 import serial.tools.list_ports
 import threading
 import matplotlib as plt
 plt.use ('TkAgg')
-from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
-from matplotlib.backend_bases import key_press_handler
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg)
+# from matplotlib.backend_bases import key_press_handler
 from matplotlib.figure import Figure
 import matplotlib.animation as animation
 from matplotlib import style
-from functools import partial
+# from functools import partial
 import time
-import numpy as np
+# import numpy as np
 
 LARGE_FONT=("Verdana, 12")
 style.use("ggplot")
 
-
 root=tk.Tk()
+root.configure(background="white")
 root.title("FiSens - FiSpec. Coded with Python. Version 0.0.0")
 root.geometry("1000x1000")
 
@@ -49,12 +42,8 @@ ax.set_ylabel('Amplitude', fontsize=8)
 ax.grid(color='yellow')
 
 canvas = FigureCanvasTkAgg(fig, fsG1.frame_Plot)
-# canvas.show()
 canvas.get_tk_widget().pack(fill=tk.BOTH, expand=1) # display plot as a widget of tkinter
 canvas.draw()
-# toolbar = NavigationToolbar2Tk(canvas, fsG1.frame_Plot)
-# toolbar.update()
-# toolbar.pack(fill=tk.BOTH, expand=True)
 
 fbg_count=4
 fbg_wavelength=[8200000, 8300000, 8400000, 8500000]
@@ -64,46 +53,6 @@ readBuf=1024
 
 ser=serial.Serial()
 
-# portObj = StringVar()
-'''
-portList = []
-ports=serial.tools.list_ports.comports()
-    
-for onePort in ports:
-    portList.append(str(onePort)[0:4])
-try:
-    fsG1.portObj.set(portList[0])
-except:
-    # if len(portList) == 0:
-    portList.append("No devices found!")
-    fsG1.portObj.set(portList[0])
-    print("No devices found!")
-
-fsG1.drop_COM.configure(fsG1.portObj, *portList)
-
-def checkCOMs():
-    global portObj, portList, drop_COM
-    
-    # fsG1.drop_COM.destroy()
-    portList.clear()
-    ports=serial.tools.list_ports.comports()
-    # serialInst = serial.Serial()
-    
-    for onePort in ports:
-        portList.append(str(onePort)[0:4])
-        # print(str(onePort))
-    
-    try:
-        portObj.set(portList[0])
-    except:
-        # if len(portList) == 0:
-        portList.append("No devices found!")
-        portObj.set(portList[0])
-        print("No devices found!")
-    fsG1.drop_COM.configure(fsG1.portObj, *portList)
-    
-    root.after(2000, checkCOMs)
-'''
 def checkCOMs():
     fsG1.checkCOMS()
     root.after(2000, checkCOMs)
@@ -150,16 +99,26 @@ def connectCOM():
     except:
         dev_available=0
         print("Error: No device found!")
-    configuration()
+    
+    wlconfig()
     ledON()
     checkWL()
+    integration()
+    setAveraging()
+    startInternal()
 
 fsG1.connect_COM_Bt.configure(command=connectCOM)
 
-def configuration():
+def wlconfig():
+    global fsG1
+    fbg_wavelength[0] = fsG1.setwl_1.get()
+    fbg_wavelength[1] = fsG1.setwl_2.get()
+    fbg_wavelength[2] = fsG1.setwl_3.get()
+    fbg_wavelength[3] = fsG1.setwl_4.get()
+
     for x in range(len(fbg_wavelength)):
-        ma1=fbg_wavelength[x]-fbg_halfwidth
-        ma2=fbg_wavelength[x]+fbg_halfwidth
+        ma1=int(fbg_wavelength[x])-fbg_halfwidth
+        ma2=int(fbg_wavelength[x])+fbg_halfwidth
         conf_msg="Ke," + str(x) + "," + str(ma1) + "," + str(ma2) + ">"
         try:
             ser.write(conf_msg.encode())
@@ -167,6 +126,8 @@ def configuration():
             print("Error: Configuration")
         print("Device configured: " + conf_msg)
         time.sleep(0.5)
+
+fsG1.setwl_Bt.configure(command=wlconfig)
 
 def ledON():
     try:
@@ -196,7 +157,7 @@ def checkWL():
     
 def startInternal():
     try:
-        ser.write("a>".encode())
+        ser.write("OBB,0>".encode())
     except:
         print("Error: Start internal Measurement")
     time.sleep(0.5)
@@ -256,36 +217,61 @@ def setAveraging():
 fsG1.setAv_Bt.configure(command=setAveraging)
 
 def setZero():
-    zVal=fsG1.setZe_In.get()
+    # zVal=fsG1.setZe_In.get()
+    # try:
+    #     zVal_=int(zVal)
+    # except:
+    #     print("Not a number!")
+    # if type(zVal_)==int:
+    #     setZe_msg="OBN," + str(zVal_) + ">"
+    setZe_msg="OBN,x>"
+    #     setZe_enc=setZe_msg.encode()
+    setZe_enc=setZe_msg.encode()
     try:
-        zVal_=int(zVal)
+        ser.write(setZe_enc)
     except:
-        print("Not a number!")
-    if type(zVal_)==int:
-    
-        setZe_msg="OBN," + str(zVal_) + ">"
-        setZe_enc=setZe_msg.encode()
-        try:
-            ser.write(setZe_enc)
-        except:
-            print("Error: Set Zero Values")
+        print("Error: Set Zero Values")
 
 fsG1.setZe_Bt.configure(command=setZero)
 
 def setAutoOpt():
-    vAO=fsG1.setZe_In.get()
+    vAO=fsG1.setAO_In.get()
     try:
         vAO_=int(vAO)
     except:
         print("Not a number!")
     if type(vAO_)==int:
     
-        vAO_msg="OBN," + str(vAO_) + ">"
+        vAO_msg="AO," + str(vAO_) + ">"
         vAO_enc=vAO_msg.encode()
         try:
             ser.write(vAO_enc)
         except:
             print("Error: Set Zero Values")
+
+    rcv_data=ser.read_until('Ende')    
+    print(rcv_data)
+    
+    try:
+        intT_ao = rcv_data[0]#  + 256*rcv_data[0] + 65536*rcv_data[0] + 16777216*rcv_data[0]
+        aver_ao = rcv_data[1]#  + 256*rcv_data[1] + 65536*rcv_data[1] + 16777216*rcv_data[1]
+        intT_ao_str = str(intT_ao)
+        aver_ao_str = str(aver_ao)
+        
+        print("Integration time optimized" +intT_ao_str)
+        print("Average optimized" + aver_ao_str)
+    except:
+        print("Error: Auto-optimization")
+
+    val_intT_ao = "".join([i for i in intT_ao_str if i.isdigit()])
+    val_aver_ao = "".join([i for i in aver_ao_str if i.isdigit()])
+    intT_ao_ = int(val_intT_ao)*1000
+    print(str(val_intT_ao))
+    print(str(val_aver_ao))
+    fsG1.intT_In.delete(0, 6)
+    fsG1.intT_In.insert(0, str(intT_ao_))
+    fsG1.setAv_In.delete(0, 6)
+    fsG1.setAv_In.insert(0, val_aver_ao)
 
 fsG1.setAO_Bt.configure(command=setAutoOpt)
 
@@ -326,7 +312,7 @@ def measurement():
     fsG1.label_Ampl2.configure(text="Amplitude 2: " + str(fbg_ampl[1]))
     fsG1.label_Ampl3.configure(text="Amplitude 3: " + str(fbg_ampl[2]))
     fsG1.label_Ampl4.configure(text="Amplitude 4: " + str(fbg_ampl[3]))
-    root.after(10000, measurement)
+    root.after(1000, measurement)
 
 def ctrlMeas():
     global specIsOn, measIsOn
@@ -377,7 +363,7 @@ def createSpectrum(interval):
         getSpecData()
         ax.clear()
         try:
-            ax.set_ylim(bottom=0, top=10000)
+            ax.set_ylim(bottom=0, top=20000)
             # if len(xWll) < 2000:
             #     checkWL()
             if len(xWll) > len(ySpec):
@@ -403,14 +389,15 @@ def ctrlSpec():
     else:
         fsG1.spec_Bt.config(text='Stop Spectrum')
         specIsOn=True
+        createSpectrum(10000)
 
 fsG1.spec_Bt.configure(command=ctrlSpec)
   
 t_Controller = threading.Thread(target=checkCOMs).start()
 t_Meas_Controller = threading.Thread(target=measurement)
-t_Spec_Controller = threading.Thread(target=getSpecData)
+# t_Spec_Controller = threading.Thread(target=getSpecData)
 # t_Spec_Controller.daemon = True
 t_Spec_Plot = threading.Thread(target=createSpectrum)
 
-ani = animation.FuncAnimation(fig, createSpectrum, interval=1000)
+ani = animation.FuncAnimation(fig, createSpectrum, interval=10000)
 root.mainloop()
