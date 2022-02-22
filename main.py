@@ -1,7 +1,11 @@
+from concurrent.futures import thread
 import tkinter as tk
+from tkinter import DISABLED
+from tkinter import NORMAL
 import FiSpec_GUI as fsG
 import serial.tools.list_ports
 import threading
+import multiprocessing
 import matplotlib as plt
 plt.use ('TkAgg')
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg)
@@ -23,6 +27,8 @@ root.geometry("1000x1000")
 
 measIsOn=False
 specIsOn=False
+
+internalMode0 = False
 
 xWll = []
 ySpec = []
@@ -52,9 +58,42 @@ fbg_halfwidth= 15000
 readBuf=1024
 
 ser=serial.Serial()
+ser.close()
 
 def checkCOMs():
     fsG1.checkCOMS()
+
+    if ser.is_open:
+        fsG1.toggleMeasMode_Bt.configure(state=NORMAL)
+        fsG1.spec_Bt.configure(state=NORMAL)
+        fsG1.meas_Bt.configure(state=NORMAL)
+        fsG1.intT_Bt.configure(state=NORMAL)
+        fsG1.setCh_Bt.configure(state=NORMAL)
+        fsG1.setAv_Bt.configure(state=NORMAL)
+        fsG1.setAO_Bt.configure(state=NORMAL)
+        fsG1.setZe_Bt.configure(state=NORMAL)
+    elif fsG1.portList[0]=="No devices found!":
+        try:
+            ser.close()
+        except:
+            pass
+        fsG1.toggleMeasMode_Bt.configure(state=DISABLED)
+        fsG1.spec_Bt.configure(state=DISABLED)
+        fsG1.meas_Bt.configure(state=DISABLED)
+        fsG1.intT_Bt.configure(state=DISABLED)
+        fsG1.setCh_Bt.configure(state=DISABLED)
+        fsG1.setAv_Bt.configure(state=DISABLED)
+        fsG1.setAO_Bt.configure(state=DISABLED)
+        fsG1.setZe_Bt.configure(state=DISABLED)
+    else:
+        fsG1.toggleMeasMode_Bt.configure(state=DISABLED)
+        fsG1.spec_Bt.configure(state=DISABLED)
+        fsG1.meas_Bt.configure(state=DISABLED)
+        fsG1.intT_Bt.configure(state=DISABLED)
+        fsG1.setCh_Bt.configure(state=DISABLED)
+        fsG1.setAv_Bt.configure(state=DISABLED)
+        fsG1.setAO_Bt.configure(state=DISABLED)
+        fsG1.setZe_Bt.configure(state=DISABLED)
     root.after(2000, checkCOMs)
 
 def connectCOM():
@@ -65,8 +104,8 @@ def connectCOM():
     ser.bytesize = 8
     ser.parity = "N"
     ser.stopbits = 1
-    ser.timeout = 0.25
-    # ser.write_timeout = 0.25
+    ser.timeout = 0.1
+    # ser.write_timeout = None
     # ser.xonxoff = True
     try:
         ser.open()
@@ -106,7 +145,7 @@ def connectCOM():
     checkWL()
     integration()
     setAveraging()
-    startInternal()
+    setInternalMode()
 
 fsG1.connect_COM_Bt.configure(command=connectCOM)
 
@@ -146,7 +185,7 @@ def checkWL():
     except:
         print("Error: WLL>")
     
-    wll_data=ser.read_until('Ende')
+    wll_data=ser.read_until('Ende') # , readBuf
     wll_data_len = len(wll_data)
     wll_data_len4=int(wll_data_len/4)
     
@@ -156,9 +195,31 @@ def checkWL():
         except:
             pass
     
+def setInternalMode():
+    global internalMode0
+    if internalMode0 == False:
+        try:
+            ser.write("OBB,0>".encode())
+            internalMode0 = True
+            fsG1.toggleMeasMode_Bt.configure(text="Temperature / Strain")
+        except:
+            print("Error: Set internal Measurement Mode")
+        time.sleep(0.5)
+    else:
+        try:
+            ser.write("OBB,1>".encode())
+            internalMode0 = False
+            fsG1.toggleMeasMode_Bt.configure(text="Peak / Amplitude")
+        except:
+            print("Error: Set internal Measurement Mode")
+        time.sleep(0.5)
+
+fsG1.toggleMeasMode_Bt.configure(command=setInternalMode)
+
 def startInternal():
     try:
-        ser.write("OBB,0>".encode())
+        ser.write("a>".encode())
+        
     except:
         print("Error: Start internal Measurement")
     time.sleep(0.5)
@@ -250,7 +311,7 @@ def setAutoOpt():
         except:
             print("Error: Set Zero Values")
 
-    rcv_data=ser.read_until('Ende')    
+    rcv_data=ser.read_until('Ende') # , readBuf
     print(rcv_data)
     
     try:
@@ -281,111 +342,133 @@ def measurement():
     fbg_peak=[8200000, 8300000, 8400000, 8500000]
     fbg_ampl=[0, 0, 0, 0]
     
-    if measIsOn == False:
-        return
-
-    if ser.is_open:
-        ser.flushInput()
-        try:
-            ser.write("P>".encode())
-            print("Send P>")
-        except:
-            print("Error: Measurement Request")
-    else:
-        print("COM-Port is closed. Try again!")
-        return
+    if measIsOn == True:
+        # print("Measurement turned on!")
+        if ser.is_open:
+            ser.flushInput()
+            try:
+                ser.write("P>".encode())
+                # print("Send P>")
+            except:
+                print("Error: Measurement Request")
+        else:
+            print("COM-Port is closed. Try again!")
+            # return
     
-    rcv_data=ser.read_until('Ende')
+        rcv_data=ser.read_until('Ende') # , readBuf
 
-    for i in range(fbg_count):
-        try:
-            fbg_peak[i] = (rcv_data[8*i] + 256*rcv_data[8*i+1] + 65536*rcv_data[8*i+2] + 16777216*rcv_data[8*i+3])/10000
-            fbg_ampl[i] = (rcv_data[8*i+4] + 256*rcv_data[8*i+5] + 65536*rcv_data[8*i+6] + 16777216*rcv_data[8*i+7])/10000
-            print("Messwerte " + str(i+1) + ": " + str(fbg_peak[i]) + ", " + str(fbg_ampl[i]))
-        except:
-            print("Error: No Data")
+        if internalMode0 == True:
 
-    fsG1.label_Peak1.configure(text="Peak 1: " + str(fbg_peak[0]))
-    fsG1.label_Peak2.configure(text="Peak 2: " + str(fbg_peak[1]))
-    fsG1.label_Peak3.configure(text="Peak 3: " + str(fbg_peak[2]))
-    fsG1.label_Peak4.configure(text="Peak 4: " + str(fbg_peak[3]))
-    fsG1.label_Ampl1.configure(text="Amplitude 1: " + str(fbg_ampl[0]))
-    fsG1.label_Ampl2.configure(text="Amplitude 2: " + str(fbg_ampl[1]))
-    fsG1.label_Ampl3.configure(text="Amplitude 3: " + str(fbg_ampl[2]))
-    fsG1.label_Ampl4.configure(text="Amplitude 4: " + str(fbg_ampl[3]))
+            for i in range(fbg_count):
+                try:
+                    fbg_peak[i] = (rcv_data[8*i] + 256*rcv_data[8*i+1] + 65536*rcv_data[8*i+2] + 16777216*rcv_data[8*i+3])/10000
+                    fbg_ampl[i] = (rcv_data[8*i+4] + 256*rcv_data[8*i+5] + 65536*rcv_data[8*i+6] + 16777216*rcv_data[8*i+7])/10000
+                    # print("Messwerte " + str(i+1) + ": " + str(fbg_peak[i]) + ", " + str(fbg_ampl[i]))
+                except:
+                    print("Error: No Data")
+
+            fsG1.label_Peak1.configure(text="Peak 1: " + str(fbg_peak[0]))
+            fsG1.label_Peak2.configure(text="Peak 2: " + str(fbg_peak[1]))
+            fsG1.label_Peak3.configure(text="Peak 3: " + str(fbg_peak[2]))
+            fsG1.label_Peak4.configure(text="Peak 4: " + str(fbg_peak[3]))
+            fsG1.label_Ampl1.configure(text="Amplitude 1: " + str(fbg_ampl[0]))
+            fsG1.label_Ampl2.configure(text="Amplitude 2: " + str(fbg_ampl[1]))
+            fsG1.label_Ampl3.configure(text="Amplitude 3: " + str(fbg_ampl[2]))
+            fsG1.label_Ampl4.configure(text="Amplitude 4: " + str(fbg_ampl[3]))
+        else:
+            for i in range(fbg_count):
+                try:
+                    fbg_peak[i] = (rcv_data[8*i] + 256*rcv_data[8*i+1] + 65536*rcv_data[8*i+2] + 16777216*rcv_data[8*i+3])/10000
+                    fbg_ampl[i] = (rcv_data[8*i+4] + 256*rcv_data[8*i+5] + 65536*rcv_data[8*i+6] + 16777216*rcv_data[8*i+7])/10000
+                    # print("Messwerte " + str(i+1) + ": " + str(fbg_peak[i]) + ", " + str(fbg_ampl[i]))
+                except:
+                    print("Error: No Data")
+            # Berechnung anpassen ?
+            fsG1.label_Peak1.configure(text="Strain 1: " + str(fbg_peak[0]))
+            fsG1.label_Peak2.configure(text="Strain 2: " + str(fbg_peak[1]))
+            fsG1.label_Peak3.configure(text="Strain 3: " + str(fbg_peak[2]))
+            fsG1.label_Peak4.configure(text="Strain 4: " + str(fbg_peak[3]))
+            fsG1.label_Ampl1.configure(text="Temperature 1: " + str(fbg_ampl[0]))
+            fsG1.label_Ampl2.configure(text="Temperature 2: " + str(fbg_ampl[1]))
+            fsG1.label_Ampl3.configure(text="Temperature 3: " + str(fbg_ampl[2]))
+            fsG1.label_Ampl4.configure(text="Temperature 4: " + str(fbg_ampl[3]))
 
     root.after(1000, measurement)
     
-
 def ctrlMeas():
-    global specIsOn, measIsOn, t_Meas_Controller
+    global specIsOn, measIsOn, t_measurement
 
     if measIsOn:
         fsG1.meas_Bt.config(text='Start Measurement')
         measIsOn=False
+        # t_measurement.
     else:
         fsG1.meas_Bt.config(text='Stop Measurement')
         measIsOn=True
-        t_measurement.start()
-        # t_Meas_Controller.join()
-    
+        
 fsG1.meas_Bt.configure(command=ctrlMeas)
+        
+def createSpectrum():
+    global fig, ax, canvas, specIsOn, ySpec, xWll
 
-def getSpecData():
-    global ySpec, specIsOn, ser
-    
-    while 1:
+    if specIsOn == True:
+        # print("Spectrum turned on!")
         ySpec.clear() #Delete old y-List
         # Send 's>'-command
-        if specIsOn==False:
-            return
-        elif ser.is_open:
+
+        if ser.is_open:
             try:
                 ser.write("s>".encode())
+
+                spec_data=ser.read_until('Ende') # , 4096 Read incoming data
+                spec_data_len=len(spec_data)
+                spec_data_len2=int(spec_data_len/2)
+
+                for i in range(spec_data_len2):
+                    try:
+                        ySpec.append(spec_data[2*i]+256*spec_data[2*i+1])
+                    except:
+                        pass
+                fig.clear()
+                # canvas.get_tk_widget.forget()
+
+                ax.clear()
+                
+                ax = fig.add_subplot(111)
+                ax.set_title('Spectrum', fontsize=10)
+                ax.set_facecolor('black')
+                # ax.set_xlim(left=770, right=910)
+                ax.set_ylim(bottom=0, top=10000)
+                ax.set_xlabel('Wavelength [nm]', fontsize=8)
+                ax.set_ylabel('Amplitude', fontsize=8)
+                ax.grid(color='yellow')
+
+                try:
+                    ax.set_ylim(bottom=0, top=10000)
+                    # if len(xWll) < 2000:
+                    #     checkWL()
+                    if len(xWll) > len(ySpec):
+                    # y and x List have to have same dimension
+                        while(len(xWll) > len(ySpec)):
+                            xWll.pop()
+                        ax.plot(xWll, ySpec, c='green')
+                    elif len(xWll) < len(ySpec):
+                        while(len(xWll) < len(ySpec)):
+                            ySpec.pop()
+                        ax.plot(xWll, ySpec, c='green')
+                    else:
+                        ax.plot(xWll, ySpec, c='green')
+                except:
+                    pass
+
+                canvas.get_tk_widget().pack(fill=tk.BOTH, expand=1)
+                canvas.draw()
             except:
                 print("Error: Spectrum Data Request")
         else:
             print("COM-Port is closed. Try again!")
-            return
-    
-        spec_data=ser.read_until('Ende') # Read incoming data
-        spec_data_len=len(spec_data)
-        spec_data_len2=int(spec_data_len/2)
-    
-        for i in range(spec_data_len2):
-            try:
-                ySpec.append(spec_data[2*i]+256*spec_data[2*i+1])
-            except:
-                pass
-        time.sleep(0.5)
-        
-def createSpectrum(interval):
-    global fig, ax, specIsOn, ySpec, xWll, t_getSpecData
-
-    if specIsOn==False:
-        return
-    elif specIsOn == True:
-        t_getSpecData.start()
-        t_getSpecData.join()
-        # getSpecData()
-        ax.clear()
-        try:
-            ax.set_ylim(bottom=0, top=20000)
-            # if len(xWll) < 2000:
-            #     checkWL()
-            if len(xWll) > len(ySpec):
-                # y and x List have to have same dimension
-                while(len(xWll) > len(ySpec)):
-                    xWll.pop()
-                ax.plot(xWll, ySpec, c='green')
-            elif len(xWll) < len(ySpec):
-                while(len(xWll) < len(ySpec)):
-                    ySpec.pop()
-                ax.plot(xWll, ySpec, c='green')
-            else:
-                ax.plot(xWll, ySpec, c='green')
-        except:
-            pass
+            
+    root.after(1000, createSpectrum)
     
 def ctrlSpec():
     global specIsOn, t_createSpectrum
@@ -396,18 +479,12 @@ def ctrlSpec():
     else:
         fsG1.spec_Bt.config(text='Stop Spectrum')
         specIsOn=True
-        # t_createSpectrum.start()
-        # t_getSpecData.start()
-        # t_getSpecData.join()
-        #root.after(1000, ctrlMeas)
+        # createSpectrum()
 
 fsG1.spec_Bt.configure(command=ctrlSpec)
   
 t_Controller = threading.Thread(target=checkCOMs).start()
-t_measurement = threading.Thread(target=measurement)
-t_getSpecData = threading.Thread(target=getSpecData)
-# t_Spec_Controller.daemon = True
-t_createSpectrum = threading.Thread(target=createSpectrum, args=(1000,))
+t_measurement = threading.Thread(target=measurement).start()
+t_createSpectrum = threading.Thread(target=createSpectrum).start()
 
-ani = animation.FuncAnimation(fig, createSpectrum, interval=1000)
 root.mainloop()
