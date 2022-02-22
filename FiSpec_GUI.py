@@ -20,6 +20,9 @@ class FiSpec_GUI:
         self.frame_start_meas = Frame(master)
         self.frame_start_meas.place(x=5,y=50, width=490, height=45)
 
+        self.toggleMeasMode_Bt = Button(self.frame_start_meas, text="Peak / Amplitude")
+        self.toggleMeasMode_Bt.place(x=300, y=2, width=120)
+
         self.meas_Bt = Button(self.frame_start_meas, text="Start Measurement")
         self.meas_Bt.place(x=150, y=2, width=120)
         # ----------
@@ -148,9 +151,9 @@ class FiSpec_GUI:
             self.portObj.set(self.portList[0])
         
         if len(self.portList) == 0:
-                self.portList.append("No devices found!")
-                self.portObj.set(self.portList[0])
-                print("No devices found!")
+            self.portList.append("No devices found!")
+            self.portObj.set(self.portList[0])
+            print(self.portList)
 
         self.drop_COM = OptionMenu(self.frame_COM_select, self.portObj, *self.portList)
         self.drop_COM.grid(row=0, column=0)
