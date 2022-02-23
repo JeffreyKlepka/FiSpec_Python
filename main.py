@@ -29,7 +29,7 @@ measIsOn=False
 specIsOn=False
 
 internalMode0 = False
-
+oldPort=""
 xWll = []
 ySpec = []
 xLWL = []
@@ -61,9 +61,24 @@ ser=serial.Serial()
 ser.close()
 
 def checkCOMs():
+    global oldPort, measIsOn, specIsOn
     fsG1.checkCOMS()
-
-    if ser.is_open:
+    if fsG1.portObj.get()!=oldPort:
+        try:
+            ser.close()
+        except:
+            pass
+        measIsOn=False
+        specIsOn=False
+        fsG1.toggleMeasMode_Bt.configure(state=DISABLED)
+        fsG1.spec_Bt.configure(state=DISABLED, text='Start Spectrum')
+        fsG1.meas_Bt.configure(state=DISABLED, text='Start Measurement')
+        fsG1.intT_Bt.configure(state=DISABLED)
+        fsG1.setCh_Bt.configure(state=DISABLED)
+        fsG1.setAv_Bt.configure(state=DISABLED)
+        fsG1.setAO_Bt.configure(state=DISABLED)
+        fsG1.setZe_Bt.configure(state=DISABLED)
+    elif ser.is_open:
         fsG1.toggleMeasMode_Bt.configure(state=NORMAL)
         fsG1.spec_Bt.configure(state=NORMAL)
         fsG1.meas_Bt.configure(state=NORMAL)
@@ -72,28 +87,19 @@ def checkCOMs():
         fsG1.setAv_Bt.configure(state=NORMAL)
         fsG1.setAO_Bt.configure(state=NORMAL)
         fsG1.setZe_Bt.configure(state=NORMAL)
-    elif fsG1.portList[0]=="No devices found!":
-        try:
-            ser.close()
-        except:
-            pass
-        fsG1.toggleMeasMode_Bt.configure(state=DISABLED)
-        fsG1.spec_Bt.configure(state=DISABLED)
-        fsG1.meas_Bt.configure(state=DISABLED)
-        fsG1.intT_Bt.configure(state=DISABLED)
-        fsG1.setCh_Bt.configure(state=DISABLED)
-        fsG1.setAv_Bt.configure(state=DISABLED)
-        fsG1.setAO_Bt.configure(state=DISABLED)
-        fsG1.setZe_Bt.configure(state=DISABLED)
     else:
+        measIsOn=False
+        specIsOn=False
         fsG1.toggleMeasMode_Bt.configure(state=DISABLED)
-        fsG1.spec_Bt.configure(state=DISABLED)
-        fsG1.meas_Bt.configure(state=DISABLED)
+        fsG1.spec_Bt.configure(state=DISABLED, text='Start Spectrum')
+        fsG1.meas_Bt.configure(state=DISABLED, text='Start Measurement')
         fsG1.intT_Bt.configure(state=DISABLED)
         fsG1.setCh_Bt.configure(state=DISABLED)
         fsG1.setAv_Bt.configure(state=DISABLED)
         fsG1.setAO_Bt.configure(state=DISABLED)
         fsG1.setZe_Bt.configure(state=DISABLED)
+    
+    oldPort=fsG1.portObj.get()
     root.after(2000, checkCOMs)
 
 def connectCOM():
@@ -104,27 +110,27 @@ def connectCOM():
     ser.bytesize = 8
     ser.parity = "N"
     ser.stopbits = 1
-    ser.timeout = 0.1
+    ser.timeout = 0.2
     # ser.write_timeout = None
     # ser.xonxoff = True
     try:
         ser.open()
     except:
         print("Failed to open COM-Port!")
+        return
     if ser.is_open:
         print("Successfully opened COM-Port: " + ser.port)
-        
         try:
             ser.write("?>".encode())
         except:
             print("Failed to send a message!")
-            print(ser)
+            return
     try:
         dev=ser.readline(15)
         dev_dec=dev.decode()
     except:
         print("No response received on COM-Port!")
-
+        return
     dev_available=0
     try:
         if dev_dec == "FiSpec FBG X100":
@@ -139,12 +145,14 @@ def connectCOM():
     except:
         dev_available=0
         print("Error: No device found!")
+        return
     
     wlconfig()
     ledON()
     checkWL()
     integration()
     setAveraging()
+    startInternal()
     setInternalMode()
 
 fsG1.connect_COM_Bt.configure(command=connectCOM)
@@ -164,6 +172,7 @@ def wlconfig():
             ser.write(conf_msg.encode())
         except:
             print("Error: Configuration")
+            return
         print("Device configured: " + conf_msg)
         time.sleep(0.5)
 
@@ -175,6 +184,7 @@ def ledON():
         print("Turn on internal LED")
     except:
         print("Error: LED")
+        return
     time.sleep(0.5)
 
 def checkWL():
@@ -184,7 +194,8 @@ def checkWL():
         ser.write("WLL>".encode())
     except:
         print("Error: WLL>")
-    
+        return
+
     wll_data=ser.read_until('Ende') # , readBuf
     wll_data_len = len(wll_data)
     wll_data_len4=int(wll_data_len/4)
@@ -204,6 +215,7 @@ def setInternalMode():
             fsG1.toggleMeasMode_Bt.configure(text="Temperature / Strain")
         except:
             print("Error: Set internal Measurement Mode")
+            return
         time.sleep(0.5)
     else:
         try:
@@ -212,6 +224,7 @@ def setInternalMode():
             fsG1.toggleMeasMode_Bt.configure(text="Peak / Amplitude")
         except:
             print("Error: Set internal Measurement Mode")
+            pass
         time.sleep(0.5)
 
 fsG1.toggleMeasMode_Bt.configure(command=setInternalMode)
@@ -219,26 +232,26 @@ fsG1.toggleMeasMode_Bt.configure(command=setInternalMode)
 def startInternal():
     try:
         ser.write("a>".encode())
-        
     except:
         print("Error: Start internal Measurement")
+        return
     time.sleep(0.5)
 
 def integration():
-    integration_time=fsG1.intT_In.get() #Eingabefeld, mit Button übernehmen
+    integration_time=fsG1.intT_In.get()
     try:
         intT_Value=int(integration_time)
     except:
         print("Not a number!")
         return
     if type(intT_Value) == int:
-
         setIt_msg="iz," + str(integration_time) + ">"
         setIt_enc=setIt_msg.encode()
         try:
             ser.write(setIt_enc)
         except:
             print("Error: Integration time")
+            pass
 
 fsG1.intT_Bt.configure(command=integration)
 
@@ -249,50 +262,44 @@ def setChannel():
         fbg_count_value=int(fbg_count)
     except:
         print("Not a number!")
+        return
     if type(fbg_count_value)==int:
-    
         setCh_msg="KA," + str(fbg_count_value) + ">"
         setCh_enc=setCh_msg.encode()
         try:
             ser.write(setCh_enc)
         except:
             print("Error: Channel")
+            pass
 
 fsG1.setCh_Bt.configure(command=setChannel)
 
 def setAveraging():
-
     aver=fsG1.setAv_In.get()
     try:
         aver_value=int(aver)
     except:
         print("Not a number!")
+        return
     if type(aver)==int:
-    
         setAv_msg="m," + str(aver_value) + ">"
         setAv_enc=setAv_msg.encode()
         try:
             ser.write(setAv_enc)
         except:
             print("Error: Averaging")
+            pass
 
 fsG1.setAv_Bt.configure(command=setAveraging)
 
 def setZero():
-    # zVal=fsG1.setZe_In.get()
-    # try:
-    #     zVal_=int(zVal)
-    # except:
-    #     print("Not a number!")
-    # if type(zVal_)==int:
-    #     setZe_msg="OBN," + str(zVal_) + ">"
     setZe_msg="OBN,x>"
-    #     setZe_enc=setZe_msg.encode()
     setZe_enc=setZe_msg.encode()
     try:
         ser.write(setZe_enc)
     except:
         print("Error: Set Zero Values")
+        pass
 
 fsG1.setZe_Bt.configure(command=setZero)
 
@@ -302,6 +309,7 @@ def setAutoOpt():
         vAO_=int(vAO)
     except:
         print("Not a number!")
+        return
     if type(vAO_)==int:
     
         vAO_msg="AO," + str(vAO_) + ">"
@@ -309,10 +317,12 @@ def setAutoOpt():
         try:
             ser.write(vAO_enc)
         except:
-            print("Error: Set Zero Values")
-
-    rcv_data=ser.read_until('Ende') # , readBuf
-    print(rcv_data)
+            print("Error: Auto-optimize!")
+            return
+    try:
+        rcv_data=ser.read_until('Ende')
+    except:
+        return
     
     try:
         intT_ao = rcv_data[0]#  + 256*rcv_data[0] + 65536*rcv_data[0] + 16777216*rcv_data[0]
@@ -324,7 +334,7 @@ def setAutoOpt():
         print("Average optimized" + aver_ao_str)
     except:
         print("Error: Auto-optimization")
-
+        return
     val_intT_ao = "".join([i for i in intT_ao_str if i.isdigit()])
     val_aver_ao = "".join([i for i in aver_ao_str if i.isdigit()])
     intT_ao_ = int(val_intT_ao)*1000
@@ -343,29 +353,30 @@ def measurement():
     fbg_ampl=[0, 0, 0, 0]
     
     if measIsOn == True:
-        # print("Measurement turned on!")
         if ser.is_open:
             ser.flushInput()
             try:
                 ser.write("P>".encode())
-                # print("Send P>")
             except:
-                print("Error: Measurement Request")
+                print("Error: Measurement - Request")
+                pass
         else:
             print("COM-Port is closed. Try again!")
-            # return
-    
-        rcv_data=ser.read_until('Ende') # , readBuf
+        try:
+            rcv_data=ser.read_until('Ende')
+        except:
+            print("Error: Measurement - Read")
+            pass
 
         if internalMode0 == True:
-
+            # Received data represents Wavelength and Amplitude
             for i in range(fbg_count):
                 try:
                     fbg_peak[i] = (rcv_data[8*i] + 256*rcv_data[8*i+1] + 65536*rcv_data[8*i+2] + 16777216*rcv_data[8*i+3])/10000
                     fbg_ampl[i] = (rcv_data[8*i+4] + 256*rcv_data[8*i+5] + 65536*rcv_data[8*i+6] + 16777216*rcv_data[8*i+7])/10000
-                    # print("Messwerte " + str(i+1) + ": " + str(fbg_peak[i]) + ", " + str(fbg_ampl[i]))
                 except:
-                    print("Error: No Data")
+                    print("Error: Measurement - No Data")
+                    pass
 
             fsG1.label_Peak1.configure(text="Peak 1: " + str(fbg_peak[0]))
             fsG1.label_Peak2.configure(text="Peak 2: " + str(fbg_peak[1]))
@@ -376,14 +387,14 @@ def measurement():
             fsG1.label_Ampl3.configure(text="Amplitude 3: " + str(fbg_ampl[2]))
             fsG1.label_Ampl4.configure(text="Amplitude 4: " + str(fbg_ampl[3]))
         else:
+            # Received data represents Strain and Temperature
             for i in range(fbg_count):
                 try:
                     fbg_peak[i] = (rcv_data[8*i] + 256*rcv_data[8*i+1] + 65536*rcv_data[8*i+2] + 16777216*rcv_data[8*i+3])/10000
-                    fbg_ampl[i] = (rcv_data[8*i+4] + 256*rcv_data[8*i+5] + 65536*rcv_data[8*i+6] + 16777216*rcv_data[8*i+7])/10000
-                    # print("Messwerte " + str(i+1) + ": " + str(fbg_peak[i]) + ", " + str(fbg_ampl[i]))
+                    fbg_ampl[i] = (rcv_data[8*i+4] + 256*rcv_data[8*i+5] + 65536*rcv_data[8*i+6] + 16777216*rcv_data[8*i+7])/100
                 except:
                     print("Error: No Data")
-            # Berechnung anpassen ?
+                    pass
             fsG1.label_Peak1.configure(text="Strain 1: " + str(fbg_peak[0]))
             fsG1.label_Peak2.configure(text="Strain 2: " + str(fbg_peak[1]))
             fsG1.label_Peak3.configure(text="Strain 3: " + str(fbg_peak[2]))
@@ -401,7 +412,6 @@ def ctrlMeas():
     if measIsOn:
         fsG1.meas_Bt.config(text='Start Measurement')
         measIsOn=False
-        # t_measurement.
     else:
         fsG1.meas_Bt.config(text='Stop Measurement')
         measIsOn=True
@@ -412,15 +422,11 @@ def createSpectrum():
     global fig, ax, canvas, specIsOn, ySpec, xWll
 
     if specIsOn == True:
-        # print("Spectrum turned on!")
-        ySpec.clear() #Delete old y-List
-        # Send 's>'-command
-
+        ySpec.clear()
         if ser.is_open:
             try:
                 ser.write("s>".encode())
-
-                spec_data=ser.read_until('Ende') # , 4096 Read incoming data
+                spec_data=ser.read_until('Ende')
                 spec_data_len=len(spec_data)
                 spec_data_len2=int(spec_data_len/2)
 
@@ -430,10 +436,8 @@ def createSpectrum():
                     except:
                         pass
                 fig.clear()
-                # canvas.get_tk_widget.forget()
-
                 ax.clear()
-                
+                # canvas.get_tk_widget.forget()
                 ax = fig.add_subplot(111)
                 ax.set_title('Spectrum', fontsize=10)
                 ax.set_facecolor('black')
@@ -479,7 +483,6 @@ def ctrlSpec():
     else:
         fsG1.spec_Bt.config(text='Stop Spectrum')
         specIsOn=True
-        # createSpectrum()
 
 fsG1.spec_Bt.configure(command=ctrlSpec)
   
