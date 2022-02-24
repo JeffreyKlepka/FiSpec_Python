@@ -1,21 +1,15 @@
-from concurrent.futures import thread
 import tkinter as tk
 from tkinter import DISABLED
 from tkinter import NORMAL
 import FiSpec_GUI as fsG
 import serial.tools.list_ports
 import threading
-import multiprocessing
 import matplotlib as plt
 plt.use ('TkAgg')
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg)
-# from matplotlib.backend_bases import key_press_handler
 from matplotlib.figure import Figure
-import matplotlib.animation as animation
 from matplotlib import style
-# from functools import partial
 import time
-# import numpy as np
 
 LARGE_FONT=("Verdana, 12")
 style.use("ggplot")
@@ -390,8 +384,8 @@ def measurement():
             # Received data represents Strain and Temperature
             for i in range(fbg_count):
                 try:
-                    fbg_peak[i] = (rcv_data[8*i] + 256*rcv_data[8*i+1] + 65536*rcv_data[8*i+2] + 16777216*rcv_data[8*i+3])/10000
-                    fbg_ampl[i] = (rcv_data[8*i+4] + 256*rcv_data[8*i+5] + 65536*rcv_data[8*i+6] + 16777216*rcv_data[8*i+7])/100
+                    fbg_peak[i] = (rcv_data[8*i] + 256*rcv_data[8*i+1] + 65536*rcv_data[8*i+2] + 16777216*rcv_data[8*i+3])/10000 #  + 65536*rcv_data[8*i+2] + 16777216*rcv_data[8*i+3]
+                    fbg_ampl[i] = (rcv_data[8*i+4] + 256*rcv_data[8*i+5] + 65536*rcv_data[8*i+6] + 16777216*rcv_data[8*i+7])/100 #  + 65536*rcv_data[8*i+6] + 16777216*rcv_data[8*i+7]
                 except:
                     print("Error: No Data")
                     pass
