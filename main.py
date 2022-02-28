@@ -28,21 +28,21 @@ xWll = []
 ySpec = []
 xLWL = []
 
-fsG1 = fsG.FiSpec_GUI(root)
-plotSize = (4, 3)
+fsG1 = fsG.FiSpec_GUI(root) # creating an object of the FiSpec_GUI class
+plotSize = (5, 3)
 fig = Figure(plotSize)
 fig.tight_layout()
-ax = fig.add_subplot(111)
+ax = fig.add_subplot(111) # adding the plot to fig
 ax.set_title('Spectrum', fontsize=10)
 ax.set_facecolor('black')
 # ax.set_xlim(left=770, right=910)
-ax.set_ylim(bottom=0, top=10000)
+# ax.set_ylim(bottom=0, top=10000)
 ax.set_xlabel('Wavelength [nm]', fontsize=8)
 ax.set_ylabel('Amplitude', fontsize=8)
 ax.grid(color='yellow')
 
-canvas = FigureCanvasTkAgg(fig, fsG1.frame_Plot)
-canvas.get_tk_widget().pack(fill=tk.BOTH, expand=1) # display plot as a widget of tkinter
+canvas = FigureCanvasTkAgg(fig, fsG1.frame_Plot) # creating a canvas object and embedd fig which will contain the spectrum plot
+canvas.get_tk_widget().pack(fill=tk.BOTH, expand=1) # 
 canvas.draw()
 
 fbg_count=4
@@ -56,6 +56,9 @@ ser.close()
 
 def checkCOMs():
     global oldPort, measIsOn, specIsOn
+    # thread t_checkCOMs 
+    # repeatedly check for available COM-Ports and connections
+    # disable Buttons if no connection can be established
     fsG1.checkCOMS()
     if fsG1.portObj.get()!=oldPort:
         try:
@@ -98,9 +101,9 @@ def checkCOMs():
 
 def connectCOM():
     global ser
-    
-    ser.port = fsG1.portObj.get()
-    ser.baudrate = 3000000
+    # Try to connect to selected COM Port and execute configurations
+    ser.port = fsG1.portObj.get() # Get selection from Optionsmenu
+    ser.baudrate = 3000000 # Configure COM-Port
     ser.bytesize = 8
     ser.parity = "N"
     ser.stopbits = 1
@@ -141,18 +144,21 @@ def connectCOM():
         print("Error: No device found!")
         return
     
-    wlconfig()
-    ledON()
-    checkWL()
-    integration()
-    setAveraging()
-    startInternal()
-    setInternalMode()
+    # Configure device after establishing a connection - for further information check FiSens FiSpec Programmer's manual
+    wlconfig() # "Ke,x,y,z>"
+    ledON() # "LED,x>"
+    checkWL() # "WLL>"
+    integration() # "iz,x>"
+    setAveraging() # "m,x>"
+    startInternal() # "a>"
+    setInternalMode() # "OBB,x>"
 
 fsG1.connect_COM_Bt.configure(command=connectCOM)
 
 def wlconfig():
     global fsG1
+    # Set peak detection channel details. First use default values
+    # Can be configure by typing user specific wavelength numbers in entry fields
     fbg_wavelength[0] = fsG1.setwl_1.get()
     fbg_wavelength[1] = fsG1.setwl_2.get()
     fbg_wavelength[2] = fsG1.setwl_3.get()
@@ -167,12 +173,13 @@ def wlconfig():
         except:
             print("Error: Configuration")
             return
-        print("Device configured: " + conf_msg)
+        print("Device configured: " + conf_msg) 
         time.sleep(0.5)
 
 fsG1.setwl_Bt.configure(command=wlconfig)
 
 def ledON():
+    # Switches internal light source (0=off, 1= on)
     try:
         ser.write("LED,1>".encode())
         print("Turn on internal LED")
@@ -436,7 +443,7 @@ def createSpectrum():
                 ax.set_title('Spectrum', fontsize=10)
                 ax.set_facecolor('black')
                 # ax.set_xlim(left=770, right=910)
-                ax.set_ylim(bottom=0, top=10000)
+                # ax.set_ylim(bottom=0, top=10000)
                 ax.set_xlabel('Wavelength [nm]', fontsize=8)
                 ax.set_ylabel('Amplitude', fontsize=8)
                 ax.grid(color='yellow')
@@ -480,7 +487,7 @@ def ctrlSpec():
 
 fsG1.spec_Bt.configure(command=ctrlSpec)
   
-t_Controller = threading.Thread(target=checkCOMs).start()
+t_checkCOMs = threading.Thread(target=checkCOMs).start()
 t_measurement = threading.Thread(target=measurement).start()
 t_createSpectrum = threading.Thread(target=createSpectrum).start()
 
