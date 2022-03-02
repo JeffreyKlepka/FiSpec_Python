@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import DISABLED
 from tkinter import NORMAL
-from tkinter import messagebox
+# from tkinter import messagebox
 
 from numpy import False_
 import FiSpec_GUI as fsG
@@ -62,10 +62,11 @@ def checkCOMs():
     # thread t_checkCOMs 
     # repeatedly check for available COM-Ports and connections
     # disable Buttons if no connection can be established
+    '''
     if progIsRunning == False:
         print("Quit Thread Checking COM-Ports...")
         return
-
+    '''
     fsG1.checkCOMS()
     if fsG1.portObj.get()!=oldPort:
         try:
@@ -413,10 +414,11 @@ def measurement():
                 fsG1.label_Ampl2.configure(text="Temperature 2: " + str(fbg_ampl[1]))
                 fsG1.label_Ampl3.configure(text="Temperature 3: " + str(fbg_ampl[2]))
                 fsG1.label_Ampl4.configure(text="Temperature 4: " + str(fbg_ampl[3]))
+        '''
         elif progIsRunning == False:
             print("Quit Thread Measurement...")
             return
-
+        '''
 
         time.sleep(1)
     # root.after(1000, measurement)
@@ -437,11 +439,11 @@ def createSpectrum():
     global fig, ax, canvas, ySpec, xWll # progIsRunning # specIsOn
 
     while 1:
-        
+        '''
         if progIsRunning == False:
             print("Quit Thread Spectrum...")
             return
-        
+        '''
         if specIsOn == True:
             if ser.is_open:
                 try:
@@ -494,12 +496,12 @@ def createSpectrum():
                     pass
             else:
                 print("COM-Port is closed. Try again!")
-        
+        '''
         if progIsRunning == False:
             print("Quit Thread Spectrum...")
             return
 
-        '''
+        
         else:
             print("Closing Thread")
             return
@@ -516,7 +518,7 @@ def ctrlSpec():
     else:
         fsG1.spec_Bt.config(text='Stop Spectrum')
         specIsOn=True
-
+'''
 def onClosing():
     global t_measurement, t_checkCOMs, t_createSpectrum, progIsRunning, measIsOn, specIsOn, ser
     if messagebox.askyesnocancel("Quit", "Do you want to quit?"):
@@ -526,12 +528,12 @@ def onClosing():
         time.sleep(3)
         ser.close()
         root.destroy()
-
+'''
 fsG1.spec_Bt.configure(command=ctrlSpec)
   
 t_checkCOMs = threading.Thread(target=checkCOMs).start()
-t_measurement = threading.Thread(target=measurement).start()
-t_createSpectrum = threading.Thread(target=createSpectrum).start()
+t_measurement = threading.Thread(target=measurement, daemon=True).start()
+t_createSpectrum = threading.Thread(target=createSpectrum, daemon=True).start()
 
-root.protocol("WM_DELETE_WINDOW", onClosing)
+# root.protocol("WM_DELETE_WINDOW", onClosing)
 root.mainloop()
