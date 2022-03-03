@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import DISABLED
 from tkinter import NORMAL
 from tkinter import messagebox
-
+import queue
 from numpy import False_
 import FiSpec_GUI as fsG
 import serial.tools.list_ports
@@ -21,6 +21,9 @@ root=tk.Tk()
 root.configure(background="white")
 root.title("FiSens - FiSpec. Coded with Python. Version 0.0.0")
 root.geometry("1000x1000")
+#Each function interacts with the same serial port. Therefore collisions have to be avoided. --> queueing requests
+q = queue.Queue() 
+
 
 measIsOn=False
 specIsOn=False
@@ -56,6 +59,23 @@ readBuf=1024
 
 ser=serial.Serial()
 ser.close()
+
+def sendrecv(command):
+    print("Successfully opened COM-Port: " + ser.port)
+    try:
+        ser.write(command.encode())
+    except:
+        print("Failed to send a message!")
+        return ""
+    try:
+        response=ser.read_until("Ende")
+        response_dec=response.decode()
+    except:
+        print("No response received on COM-Port!")
+        return ""
+
+    # response = ""
+    return response_dec
 
 def checkCOMs():
     global oldPort, measIsOn, specIsOn, progIsRunning
@@ -125,6 +145,8 @@ def connectCOM():
         print("Failed to open COM-Port!")
         return
     if ser.is_open:
+        dev_dec = sendrecv("?>")
+        '''    
         print("Successfully opened COM-Port: " + ser.port)
         try:
             ser.write("?>".encode())
@@ -137,6 +159,7 @@ def connectCOM():
     except:
         print("No response received on COM-Port!")
         return
+    '''
     dev_available=0
     try:
         if dev_dec == "FiSpec FBG X100":
