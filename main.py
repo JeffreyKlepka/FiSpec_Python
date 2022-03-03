@@ -3,6 +3,9 @@ from tkinter import DISABLED
 from tkinter import NORMAL
 from tkinter import messagebox
 import queue
+
+# from tkinter import messagebox
+
 from numpy import False_
 import FiSpec_GUI as fsG
 import serial.tools.list_ports
@@ -61,7 +64,7 @@ ser=serial.Serial()
 ser.close()
 
 def sendrecv(command):
-    print("Successfully opened COM-Port: " + ser.port)
+    
     try:
         ser.write(command.encode())
     except:
@@ -82,10 +85,7 @@ def checkCOMs():
     # thread t_checkCOMs 
     # repeatedly check for available COM-Ports and connections
     # disable Buttons if no connection can be established
-    if progIsRunning == False:
-        print("Quit Thread Checking COM-Ports...")
-        return
-
+    
     fsG1.checkCOMS()
     if fsG1.portObj.get()!=oldPort:
         try:
@@ -123,7 +123,6 @@ def checkCOMs():
         fsG1.setAO_Bt.configure(state=DISABLED)
         fsG1.setZe_Bt.configure(state=DISABLED)
         # time.sleep(1)
-    
 
     oldPort=fsG1.portObj.get()
     root.after(2000, checkCOMs)
@@ -145,21 +144,9 @@ def connectCOM():
         print("Failed to open COM-Port!")
         return
     if ser.is_open:
-        dev_dec = sendrecv("?>")
-        '''    
         print("Successfully opened COM-Port: " + ser.port)
-        try:
-            ser.write("?>".encode())
-        except:
-            print("Failed to send a message!")
-            return
-    try:
-        dev=ser.readline(15)
-        dev_dec=dev.decode()
-    except:
-        print("No response received on COM-Port!")
-        return
-    '''
+        dev_dec = sendrecv("?>")
+        
     dev_available=0
     try:
         if dev_dec == "FiSpec FBG X100":
@@ -200,11 +187,7 @@ def wlconfig():
         ma1=int(fbg_wavelength[x])-fbg_halfwidth
         ma2=int(fbg_wavelength[x])+fbg_halfwidth
         conf_msg="Ke," + str(x) + "," + str(ma1) + "," + str(ma2) + ">"
-        try:
-            ser.write(conf_msg.encode())
-        except:
-            print("Error: Configuration")
-            return
+        config = sendrecv(conf_msg)
         print("Device configured: " + conf_msg) 
         time.sleep(0.5)
 
@@ -436,10 +419,6 @@ def measurement():
                 fsG1.label_Ampl2.configure(text="Temperature 2: " + str(fbg_ampl[1]))
                 fsG1.label_Ampl3.configure(text="Temperature 3: " + str(fbg_ampl[2]))
                 fsG1.label_Ampl4.configure(text="Temperature 4: " + str(fbg_ampl[3]))
-        elif progIsRunning == False:
-            print("Quit Thread Measurement...")
-            return
-
 
         time.sleep(1)
     # root.after(1000, measurement)
@@ -460,11 +439,6 @@ def createSpectrum():
     global fig, ax, canvas, ySpec, xWll # progIsRunning # specIsOn
 
     while 1:
-        
-        if progIsRunning == False:
-            print("Quit Thread Spectrum...")
-            return
-        
         if specIsOn == True:
             if ser.is_open:
                 try:
@@ -505,30 +479,17 @@ def createSpectrum():
                                 ySpec.pop()
                             ax.plot(xWll, ySpec, c='green')
                         else:
-                            ax.plot(xWll, ySpec, c='green')
-                        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=1)
-                        canvas.draw()
+                            ax.plot(xWll, ySpec, c='green')    
                     except:
                         pass
-
-                    
+                    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=1)
+                    canvas.draw()    
                 except:
                     print("Error: Spectrum Data Request")
                     pass
             else:
                 print("COM-Port is closed. Try again!")
-        
-        if progIsRunning == False:
-            print("Quit Thread Spectrum...")
-            return
-
-        '''
-        else:
-            print("Closing Thread")
-            return
-        '''
-        time.sleep(0.1)
-        # root.after(100, createSpectrum)
+        time.sleep(0.5)
     
 def ctrlSpec():
     global specIsOn, t_createSpectrum
@@ -540,21 +501,10 @@ def ctrlSpec():
         fsG1.spec_Bt.config(text='Stop Spectrum')
         specIsOn=True
 
-def onClosing():
-    global t_measurement, t_checkCOMs, t_createSpectrum, progIsRunning, measIsOn, specIsOn, ser
-    if messagebox.askyesnocancel("Quit", "Do you want to quit?"):
-        progIsRunning=False
-        measIsOn=False
-        specIsOn=False
-        time.sleep(3)
-        ser.close()
-        root.destroy()
-
 fsG1.spec_Bt.configure(command=ctrlSpec)
   
 t_checkCOMs = threading.Thread(target=checkCOMs).start()
-t_measurement = threading.Thread(target=measurement).start()
-t_createSpectrum = threading.Thread(target=createSpectrum).start()
+t_measurement = threading.Thread(target=measurement, daemon=True).start()
+t_createSpectrum = threading.Thread(target=createSpectrum, daemon=True).start()
 
-root.protocol("WM_DELETE_WINDOW", onClosing)
 root.mainloop()
