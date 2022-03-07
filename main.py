@@ -3,9 +3,6 @@ from tkinter import DISABLED
 from tkinter import NORMAL
 from tkinter import messagebox
 import queue
-
-# from tkinter import messagebox
-
 from numpy import False_
 import FiSpec_GUI as fsG
 import serial.tools.list_ports
@@ -24,9 +21,6 @@ root=tk.Tk()
 root.configure(background="white")
 root.title("FiSens - FiSpec. Coded with Python. Version 0.0.0")
 root.geometry("1000x1000")
-#Each function interacts with the same serial port. Therefore collisions have to be avoided. --> queueing requests
-q = queue.Queue() 
-
 
 measIsOn=False
 specIsOn=False
@@ -57,35 +51,33 @@ canvas.draw()
 fbg_count=4
 fbg_wavelength=[8200000, 8300000, 8400000, 8500000]
 fbg_halfwidth= 15000
-
-readBuf=1024
-
+# readBuf=1024
 ser=serial.Serial()
-ser.close()
+# ser.close()
 
 def sendrecv(command):
     
     try:
+        ser.flushInput()
         ser.write(command.encode())
     except:
         print("Failed to send a message!")
         return ""
     try:
         response=ser.read_until("Ende")
-        response_dec=response.decode()
+        # response_dec=response.decode()
     except:
         print("No response received on COM-Port!")
         return ""
 
     # response = ""
-    return response_dec
+    return response
 
 def checkCOMs():
-    global oldPort, measIsOn, specIsOn, progIsRunning
+    global oldPort, measIsOn, specIsOn
     # thread t_checkCOMs 
     # repeatedly check for available COM-Ports and connections
     # disable Buttons if no connection can be established
-    
     fsG1.checkCOMS()
     if fsG1.portObj.get()!=oldPort:
         try:
@@ -122,8 +114,6 @@ def checkCOMs():
         fsG1.setAv_Bt.configure(state=DISABLED)
         fsG1.setAO_Bt.configure(state=DISABLED)
         fsG1.setZe_Bt.configure(state=DISABLED)
-        # time.sleep(1)
-
     oldPort=fsG1.portObj.get()
     root.after(2000, checkCOMs)
 
@@ -135,7 +125,7 @@ def connectCOM():
     ser.bytesize = 8
     ser.parity = "N"
     ser.stopbits = 1
-    ser.timeout = 0.2
+    ser.timeout = 0.5
     # ser.write_timeout = None
     # ser.xonxoff = True
     try:
@@ -176,7 +166,7 @@ fsG1.connect_COM_Bt.configure(command=connectCOM)
 
 def wlconfig():
     global fsG1
-    # Set peak detection channel details. First use default values
+    # Set peak detection channel details. Use default values at first
     # Can be configure by typing user specific wavelength numbers in entry fields
     fbg_wavelength[0] = fsG1.setwl_1.get()
     fbg_wavelength[1] = fsG1.setwl_2.get()
@@ -187,7 +177,8 @@ def wlconfig():
         ma1=int(fbg_wavelength[x])-fbg_halfwidth
         ma2=int(fbg_wavelength[x])+fbg_halfwidth
         conf_msg="Ke," + str(x) + "," + str(ma1) + "," + str(ma2) + ">"
-        config = sendrecv(conf_msg)
+        ser.flushInput()
+        ser.write(conf_msg.encode())
         print("Device configured: " + conf_msg) 
         time.sleep(0.5)
 
@@ -196,6 +187,7 @@ fsG1.setwl_Bt.configure(command=wlconfig)
 def ledON():
     # Switches internal light source (0=off, 1= on)
     try:
+        ser.flushInput()
         ser.write("LED,1>".encode())
         print("Turn on internal LED")
     except:
@@ -205,14 +197,12 @@ def ledON():
 
 def checkWL():
     global xWll
-    try:
-        ser.flushInput()
-        ser.write("WLL>".encode())
+    try:   
+        wll_data=sendrecv("WLL>")
     except:
         print("Error: WLL>")
         return
 
-    wll_data=ser.read_until('Ende') # , readBuf
     wll_data_len = len(wll_data)
     wll_data_len4=int(wll_data_len/4)
     
@@ -262,9 +252,8 @@ def integration():
         return
     if type(intT_Value) == int:
         setIt_msg="iz," + str(integration_time) + ">"
-        setIt_enc=setIt_msg.encode()
         try:
-            ser.write(setIt_enc)
+            ser.write(setIt_msg.encode())
         except:
             print("Error: Integration time")
             pass
@@ -281,9 +270,8 @@ def setChannel():
         return
     if type(fbg_count_value)==int:
         setCh_msg="KA," + str(fbg_count_value) + ">"
-        setCh_enc=setCh_msg.encode()
         try:
-            ser.write(setCh_enc)
+            ser.write(setCh_msg.encode())
         except:
             print("Error: Channel")
             pass
@@ -299,9 +287,8 @@ def setAveraging():
         return
     if type(aver)==int:
         setAv_msg="m," + str(aver_value) + ">"
-        setAv_enc=setAv_msg.encode()
         try:
-            ser.write(setAv_enc)
+            ser.write(setAv_msg.encode())
         except:
             print("Error: Averaging")
             pass
@@ -310,9 +297,8 @@ fsG1.setAv_Bt.configure(command=setAveraging)
 
 def setZero():
     setZe_msg="OBN,x>"
-    setZe_enc=setZe_msg.encode()
     try:
-        ser.write(setZe_enc)
+        ser.write(setZe_msg.encode())
     except:
         print("Error: Set Zero Values")
         pass
@@ -327,18 +313,8 @@ def setAutoOpt():
         print("Not a number!")
         return
     if type(vAO_)==int:
-    
         vAO_msg="AO," + str(vAO_) + ">"
-        vAO_enc=vAO_msg.encode()
-        try:
-            ser.write(vAO_enc)
-        except:
-            print("Error: Auto-optimize!")
-            return
-    try:
-        rcv_data=ser.read_until('Ende')
-    except:
-        return
+        rcv_data=sendrecv(vAO_msg)
     
     try:
         intT_ao = rcv_data[0]#  + 256*rcv_data[0] + 65536*rcv_data[0] + 16777216*rcv_data[0]
@@ -364,25 +340,16 @@ def setAutoOpt():
 fsG1.setAO_Bt.configure(command=setAutoOpt)
 
 def measurement():
-    global ser, progIsRunning
+    # Requests data from device and displays the numeric values in form of labels - "P>"-Command
+    global ser
     fbg_peak=[8200000, 8300000, 8400000, 8500000]
     fbg_ampl=[0, 0, 0, 0]
     while 1:
         if measIsOn == True:
             if ser.is_open:
-                ser.flushInput()
-                try:
-                    ser.write("P>".encode())
-                except:
-                    print("Error: Measurement - Request")
-                    pass
+                rcv_data=sendrecv("P>")
             else:
                 print("COM-Port is closed. Try again!")
-            try:
-                rcv_data=ser.read_until('Ende')
-            except:
-                print("Error: Measurement - Read")
-                pass
 
             if internalMode0 == True:
                 # Received data represents Wavelength and Amplitude
@@ -419,13 +386,12 @@ def measurement():
                 fsG1.label_Ampl2.configure(text="Temperature 2: " + str(fbg_ampl[1]))
                 fsG1.label_Ampl3.configure(text="Temperature 3: " + str(fbg_ampl[2]))
                 fsG1.label_Ampl4.configure(text="Temperature 4: " + str(fbg_ampl[3]))
-
+        # createSpectrum()
         time.sleep(1)
-    # root.after(1000, measurement)
     
 def ctrlMeas():
-    global specIsOn, measIsOn, t_measurement
-
+    # Toggles Button Start Measurement and sets Variable measIsOn which enables/disables the function
+    global measIsOn
     if measIsOn:
         fsG1.meas_Bt.config(text='Start Measurement')
         measIsOn=False
@@ -436,18 +402,16 @@ def ctrlMeas():
 fsG1.meas_Bt.configure(command=ctrlMeas)
         
 def createSpectrum():
-    global fig, ax, canvas, ySpec, xWll # progIsRunning # specIsOn
-
+    # Requests data from device and displays it as a spectrum - "s>"-Command
+    global fig, ax, canvas, ySpec, xWll
     while 1:
         if specIsOn == True:
             if ser.is_open:
                 try:
                     ySpec.clear()
-                    ser.write("s>".encode())
-                    spec_data=ser.read_until('Ende')
+                    spec_data=sendrecv("s>")
                     spec_data_len=len(spec_data)
                     spec_data_len2=int(spec_data_len/2)
-
                     for i in range(spec_data_len2):
                         try:
                             ySpec.append(spec_data[2*i]+256*spec_data[2*i+1])
@@ -455,16 +419,12 @@ def createSpectrum():
                             pass
                     fig.clear()
                     ax.clear()
-                    # canvas.get_tk_widget.forget()
                     ax = fig.add_subplot(111)
                     ax.set_title('Spectrum', fontsize=10)
                     ax.set_facecolor('black')
-                    # ax.set_xlim(left=770, right=910)
-                    # ax.set_ylim(bottom=0, top=10000)
                     ax.set_xlabel('Wavelength [nm]', fontsize=8)
                     ax.set_ylabel('Amplitude', fontsize=8)
                     ax.grid(color='yellow')
-
                     try:
                         ax.set_ylim(bottom=0, top=30000)
                         # if len(xWll) < 2000:
@@ -489,11 +449,11 @@ def createSpectrum():
                     pass
             else:
                 print("COM-Port is closed. Try again!")
-        time.sleep(0.5)
+        time.sleep(1)
     
 def ctrlSpec():
-    global specIsOn, t_createSpectrum
-
+    # Toggles Button Start Specrum and sets Variable specIsOn which enables/disables the function
+    global specIsOn
     if specIsOn:
         fsG1.spec_Bt.config(text='Start Spectrum')
         specIsOn=False
