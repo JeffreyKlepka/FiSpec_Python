@@ -1,9 +1,6 @@
 import tkinter as tk
 from tkinter import DISABLED
 from tkinter import NORMAL
-from tkinter import messagebox
-import queue
-from numpy import False_
 import FiSpec_GUI as fsG
 import serial.tools.list_ports
 import threading
@@ -22,14 +19,13 @@ root.configure(background="white")
 root.title("FiSens - FiSpec. Coded with Python. Version 0.0.0")
 root.geometry("1000x1000")
 
-measIsOn=False
-specIsOn=False
-progIsRunning=True
-internalMode0 = False
+measIsOn=False # Flag which indicates if measurement is running.
+specIsOn=False # Flag which indicates if spectrum is running
+internalMode0 = False # Flag which indicates which kind of measurement data will be provided
 oldPort=""
-xWll = []
-ySpec = []
-xLWL = []
+
+xWll = [] # stores wavelength list (x-axis) of the plot
+ySpec = [] # stores amplitude liste (y-axis) of the plot
 
 fsG1 = fsG.FiSpec_GUI(root) # creating an object of the FiSpec_GUI class
 plotSize = (5, 3)
@@ -56,7 +52,6 @@ ser=serial.Serial()
 # ser.close()
 
 def sendrecv(command):
-    
     try:
         ser.flushInput()
         ser.write(command.encode())
@@ -118,16 +113,15 @@ def checkCOMs():
     root.after(2000, checkCOMs)
 
 def connectCOM():
-    global ser
     # Try to connect to selected COM Port and execute configurations
+    global ser
+    dev_available=0
     ser.port = fsG1.portObj.get() # Get selection from Optionsmenu
     ser.baudrate = 3000000 # Configure COM-Port
     ser.bytesize = 8
     ser.parity = "N"
     ser.stopbits = 1
     ser.timeout = 0.5
-    # ser.write_timeout = None
-    # ser.xonxoff = True
     try:
         ser.open()
     except:
@@ -136,8 +130,6 @@ def connectCOM():
     if ser.is_open:
         print("Successfully opened COM-Port: " + ser.port)
         dev_dec = sendrecv("?>")
-        
-    dev_available=0
     try:
         if dev_dec == "FiSpec FBG X100":
             dev_available=1
@@ -153,7 +145,7 @@ def connectCOM():
         print("Error: No device found!")
         return
     
-    # Configure device after establishing a connection - for further information check FiSens FiSpec Programmer's manual
+    # Configure device after establishing a connection - for further information on commands check FiSens FiSpec Programmer's manual
     wlconfig() # "Ke,x,y,z>"
     ledON() # "LED,x>"
     checkWL() # "WLL>"
@@ -165,9 +157,9 @@ def connectCOM():
 fsG1.connect_COM_Bt.configure(command=connectCOM)
 
 def wlconfig():
+    # Set peak detection channel details. Use default values first
+    # Can be configured by typing user specific wavelength numbers in entry fields
     global fsG1
-    # Set peak detection channel details. Use default values at first
-    # Can be configure by typing user specific wavelength numbers in entry fields
     fbg_wavelength[0] = fsG1.setwl_1.get()
     fbg_wavelength[1] = fsG1.setwl_2.get()
     fbg_wavelength[2] = fsG1.setwl_3.get()
@@ -196,6 +188,7 @@ def ledON():
     time.sleep(0.5)
 
 def checkWL():
+    # Get wavelength of pixel list - x-axis of spectrum
     global xWll
     try:   
         wll_data=sendrecv("WLL>")
@@ -236,14 +229,16 @@ def setInternalMode():
 fsG1.toggleMeasMode_Bt.configure(command=setInternalMode)
 
 def startInternal():
+    # Globally start measurement
     try:
         ser.write("a>".encode())
     except:
-        print("Error: Start internal Measurement")
+        print("Error: a> - Globally start measurement")
         return
     time.sleep(0.5)
 
 def integration():
+    # Set integration time
     integration_time=fsG1.intT_In.get()
     try:
         intT_Value=int(integration_time)
@@ -255,7 +250,7 @@ def integration():
         try:
             ser.write(setIt_msg.encode())
         except:
-            print("Error: Integration time")
+            print("Error: Set integration time")
             pass
 
 fsG1.intT_Bt.configure(command=integration)
@@ -273,12 +268,13 @@ def setChannel():
         try:
             ser.write(setCh_msg.encode())
         except:
-            print("Error: Channel")
+            print("Error: KA,x> - Set number of active channels")
             pass
 
 fsG1.setCh_Bt.configure(command=setChannel)
 
 def setAveraging():
+    #Set averaging
     aver=fsG1.setAv_In.get()
     try:
         aver_value=int(aver)
@@ -296,6 +292,7 @@ def setAveraging():
 fsG1.setAv_Bt.configure(command=setAveraging)
 
 def setZero():
+    # Set actual values as zero values
     setZe_msg="OBN,x>"
     try:
         ser.write(setZe_msg.encode())
@@ -306,6 +303,8 @@ def setZero():
 fsG1.setZe_Bt.configure(command=setZero)
 
 def setAutoOpt():
+    # Start auto-optimization of integration time / averages
+    # If successful, values in entry fields will be overwritten
     vAO=fsG1.setAO_In.get()
     try:
         vAO_=int(vAO)
@@ -315,10 +314,9 @@ def setAutoOpt():
     if type(vAO_)==int:
         vAO_msg="AO," + str(vAO_) + ">"
         rcv_data=sendrecv(vAO_msg)
-    
     try:
-        intT_ao = rcv_data[0]#  + 256*rcv_data[0] + 65536*rcv_data[0] + 16777216*rcv_data[0]
-        aver_ao = rcv_data[1]#  + 256*rcv_data[1] + 65536*rcv_data[1] + 16777216*rcv_data[1]
+        intT_ao = rcv_data[0]
+        aver_ao = rcv_data[1]
         intT_ao_str = str(intT_ao)
         aver_ao_str = str(aver_ao)
         
@@ -462,7 +460,8 @@ def ctrlSpec():
         specIsOn=True
 
 fsG1.spec_Bt.configure(command=ctrlSpec)
-  
+
+# Create 3 threads which will do work simultaneously
 t_checkCOMs = threading.Thread(target=checkCOMs).start()
 t_measurement = threading.Thread(target=measurement, daemon=True).start()
 t_createSpectrum = threading.Thread(target=createSpectrum, daemon=True).start()

@@ -1,6 +1,9 @@
+# FiSens FiSpec, GUI Class - Coded with Python. March, 2022
+
 from tkinter import Frame, StringVar, Label, Entry, Button, OptionMenu
 import serial.tools.list_ports
-
+# The GUI class. All tkinter widgets (Frames, Buttons, Labels, etc.) will be defined as attributes in this class.
+# Also, positioning of those widgets is specified in this class
 class FiSpec_GUI:
     def __init__(self, master):
         self.master=master
@@ -64,10 +67,6 @@ class FiSpec_GUI:
         # ----------
         self.frame_setZe = Frame(master)
         self.frame_setZe.place(x=5,y=300, width=490, height=45)
-
-        # self.setZe_In = Entry(self.frame_setZe, width=20)
-        # self.setZe_In.place(x=15, y=2)
-        # self.setZe_In.insert(0, "0")
 
         self.setZe_Bt = Button(self.frame_setZe, text="Set Zero Values")
         self.setZe_Bt.place(x=150, y=0, width=120)
@@ -141,19 +140,21 @@ class FiSpec_GUI:
         self.setwl_Bt.place(x=20, y=135, width=120)
 
     def checkCOMS(self): 
+        # will be called from thread t_checkCOMs every 2 seconds. Updates the list of COM-Ports shown in the optionsmenu of the GUI
+        # first destroy old widget and clear old list
         self.drop_COM.destroy()
         self.portList.clear()
         
-        ports=serial.tools.list_ports.comports()
-            
+        ports=serial.tools.list_ports.comports() #get available COM-Ports
+        # and add them to the list
         for onePort in ports:
             self.portList.append(str(onePort)[0:4])
             self.portObj.set(self.portList[0])
-        
+        # if no devices are found
         if len(self.portList) == 0:
             self.portList.append("No devices found!")
             self.portObj.set(self.portList[0])
             print(self.portList)
-
+        # create new optionsmenu and place it in the GUI
         self.drop_COM = OptionMenu(self.frame_COM_select, self.portObj, *self.portList)
         self.drop_COM.grid(row=0, column=0)
