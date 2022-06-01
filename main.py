@@ -342,6 +342,9 @@ def measurement():
     global ser
     fbg_peak=[8200000, 8300000, 8400000, 8500000]
     fbg_ampl=[0, 0, 0, 0]
+    fbg_strain=[-5000000, -50, -50, -50]
+    fbg_strain_f=[-5000000, -50, -50, -50]
+    fbg_temp=[-5000000, -50, -50, -50]
     while 1:
         if measIsOn == True:
             if ser.is_open:
@@ -371,19 +374,23 @@ def measurement():
                 # Received data represents Strain and Temperature
                 for i in range(fbg_count):
                     try:
-                        fbg_peak[i] = (rcv_data[8*i] + 256*rcv_data[8*i+1] + 65536*rcv_data[8*i+2] + 16777216*rcv_data[8*i+3])/10000 #  + 65536*rcv_data[8*i+2] + 16777216*rcv_data[8*i+3]
-                        fbg_ampl[i] = (rcv_data[8*i+4] + 256*rcv_data[8*i+5] + 65536*rcv_data[8*i+6] + 16777216*rcv_data[8*i+7])/100 #  + 65536*rcv_data[8*i+6] + 16777216*rcv_data[8*i+7]
+                        strain_4bytes=[rcv_data[8*i], rcv_data[8*i+1], rcv_data[8*i+2], rcv_data[8*i+3]]
+                        fbg_strain[i]=int.from_bytes(strain_4bytes, byteorder="little", signed=True) / 10000 
+                        temp_4bytes=[rcv_data[8*i+4], rcv_data[8*i+5], rcv_data[8*i+6], rcv_data[8*i+7]] 
+                        fbg_temp[i] = int.from_bytes(temp_4bytes, byteorder="little", signed=True) / 100
                     except:
                         print("Error: No Data")
                         pass
-                fsG1.label_Peak1.configure(text="Strain 1: " + str(fbg_peak[0]))
-                fsG1.label_Peak2.configure(text="Strain 2: " + str(fbg_peak[1]))
-                fsG1.label_Peak3.configure(text="Strain 3: " + str(fbg_peak[2]))
-                fsG1.label_Peak4.configure(text="Strain 4: " + str(fbg_peak[3]))
-                fsG1.label_Ampl1.configure(text="Temperature 1: " + str(fbg_ampl[0]))
-                fsG1.label_Ampl2.configure(text="Temperature 2: " + str(fbg_ampl[1]))
-                fsG1.label_Ampl3.configure(text="Temperature 3: " + str(fbg_ampl[2]))
-                fsG1.label_Ampl4.configure(text="Temperature 4: " + str(fbg_ampl[3]))
+                fsG1.label_Peak1.configure(text="Strain 1: " + str(fbg_strain[0]))
+                fsG1.label_Peak2.configure(text="Strain 2: " + str(fbg_strain[1]))
+                fsG1.label_Peak3.configure(text="Strain 3: " + str(fbg_strain[2]))
+                fsG1.label_Peak4.configure(text="Strain 4: " + str(fbg_strain[3]))
+                fsG1.label_Ampl1.configure(text="Temperature 1: " + str(fbg_temp[0]))
+                fsG1.label_Ampl2.configure(text="Temperature 2: " + str(fbg_temp[1]))
+                fsG1.label_Ampl3.configure(text="Temperature 3: " + str(fbg_temp[2]))
+                fsG1.label_Ampl4.configure(text="Temperature 4: " + str(fbg_temp[3]))
+                # print(rcv_data)
+                # print(fbg_strain[1])
         # createSpectrum()
         time.sleep(1)
     
