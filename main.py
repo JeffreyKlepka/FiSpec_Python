@@ -1,6 +1,7 @@
+# FiSens FiSpec - main
+# Version 0.2 
+# July, 2022
 import tkinter as tk
-from tkinter import DISABLED
-from tkinter import NORMAL
 import FiSpec_GUI as fsG
 import serial.tools.list_ports
 import threading
@@ -16,40 +17,43 @@ style.use("ggplot")
 
 root=tk.Tk()
 root.configure(background="white")
-root.title("FiSens - FiSpec. Coded with Python. Version 0.0.0")
+root.title("FiSens - FiSpec. Coded with Python. Version 0.2 - July 2022")
 root.geometry("1000x1000")
 
 measIsOn=False # Flag which indicates if measurement is running.
-specIsOn=False # Flag which indicates if spectrum is running
+specIsOn=False # Flag which indicates if spectrum is running.
+pausedSpec=False # Flag which indicates if the spectrum is paused. While configuring the Spectrum should not run.
 internalMode0 = False # Flag which indicates which kind of measurement data will be provided
 oldPort=""
-
 xWll = [] # stores wavelength list (x-axis) of the plot
 ySpec = [] # stores amplitude liste (y-axis) of the plot
 
 fsG1 = fsG.FiSpec_GUI(root) # creating an object of the FiSpec_GUI class
-plotSize = (5, 3)
-fig = Figure(plotSize)
-fig.tight_layout()
-ax = fig.add_subplot(111) # adding the plot to fig
-ax.set_title('Spectrum', fontsize=10)
-ax.set_facecolor('black')
-# ax.set_xlim(left=770, right=910)
-# ax.set_ylim(bottom=0, top=10000)
-ax.set_xlabel('Wavelength [nm]', fontsize=8)
-ax.set_ylabel('Amplitude', fontsize=8)
-ax.grid(color='yellow')
-
-canvas = FigureCanvasTkAgg(fig, fsG1.frame_Plot) # creating a canvas object and embedd fig which will contain the spectrum plot
-canvas.get_tk_widget().pack(fill=tk.BOTH, expand=1) # 
-canvas.draw()
 
 fbg_count=4
 fbg_wavelength=[8200000, 8300000, 8400000, 8500000]
 fbg_halfwidth= 15000
 # readBuf=1024
 ser=serial.Serial()
-# ser.close()
+
+
+def buildSpectrum():
+    global fig, ax, canvas
+    plotSize = (5, 3)
+    fig = Figure(plotSize) # creating a figure which will contain the spectrum
+    fig.tight_layout()
+    ax = fig.add_subplot(111) # adding the plot to fig
+    ax.set_title('Spectrum', fontsize=10)
+    ax.set_facecolor('black')
+    # ax.set_xlim(left=770, right=910)
+    # ax.set_ylim(bottom=0, top=10000)
+    ax.set_xlabel('Wavelength [nm]', fontsize=8)
+    ax.set_ylabel('Amplitude', fontsize=8)
+    ax.grid(color='yellow')
+
+    canvas = FigureCanvasTkAgg(fig, fsG1.frame_Plot) # creating a canvas object and embedd fig which will contain the spectrum plot
+    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=1) # 
+    canvas.draw()
 
 def sendrecv(command):
     try:
@@ -60,20 +64,16 @@ def sendrecv(command):
         return ""
     try:
         response=ser.read_until("Ende")
-        # response_dec=response.decode()
     except:
         print("No response received on COM-Port!")
         return ""
 
-    # response = ""
     return response
 
 def checkCOMs():
     global oldPort, measIsOn, specIsOn
-    # thread t_checkCOMs 
-    # repeatedly check for available COM-Ports and connections
-    # disable Buttons if no connection can be established
-    fsG1.checkCOMS()
+    # check for available COM-Ports
+    fsG1.checkCOMs()
     if fsG1.portObj.get()!=oldPort:
         try:
             ser.close()
@@ -81,40 +81,20 @@ def checkCOMs():
             pass
         measIsOn=False
         specIsOn=False
-        fsG1.toggleMeasMode_Bt.configure(state=DISABLED)
-        fsG1.spec_Bt.configure(state=DISABLED, text='Start Spectrum')
-        fsG1.meas_Bt.configure(state=DISABLED, text='Start Measurement')
-        fsG1.intT_Bt.configure(state=DISABLED)
-        fsG1.setCh_Bt.configure(state=DISABLED)
-        fsG1.setAv_Bt.configure(state=DISABLED)
-        fsG1.setAO_Bt.configure(state=DISABLED)
-        fsG1.setZe_Bt.configure(state=DISABLED)
+        fsG1.disableButtons()
     elif ser.is_open:
-        fsG1.toggleMeasMode_Bt.configure(state=NORMAL)
-        fsG1.spec_Bt.configure(state=NORMAL)
-        fsG1.meas_Bt.configure(state=NORMAL)
-        fsG1.intT_Bt.configure(state=NORMAL)
-        fsG1.setCh_Bt.configure(state=NORMAL)
-        fsG1.setAv_Bt.configure(state=NORMAL)
-        fsG1.setAO_Bt.configure(state=NORMAL)
-        fsG1.setZe_Bt.configure(state=NORMAL)
+        fsG1.enableButtons()       
     else:
         measIsOn=False
         specIsOn=False
-        fsG1.toggleMeasMode_Bt.configure(state=DISABLED)
-        fsG1.spec_Bt.configure(state=DISABLED, text='Start Spectrum')
-        fsG1.meas_Bt.configure(state=DISABLED, text='Start Measurement')
-        fsG1.intT_Bt.configure(state=DISABLED)
-        fsG1.setCh_Bt.configure(state=DISABLED)
-        fsG1.setAv_Bt.configure(state=DISABLED)
-        fsG1.setAO_Bt.configure(state=DISABLED)
-        fsG1.setZe_Bt.configure(state=DISABLED)
+        fsG1.disableButtons()
     oldPort=fsG1.portObj.get()
-    root.after(2000, checkCOMs)
+
+fsG1.refreshCOM_Bt.configure(command=checkCOMs) # assign the function to the button
 
 def connectCOM():
     # Try to connect to selected COM Port and execute configurations
-    global ser
+    global ser, oldPort
     dev_available=0
     ser.port = fsG1.portObj.get() # Get selection from Optionsmenu
     ser.baudrate = 3000000 # Configure COM-Port
@@ -128,14 +108,15 @@ def connectCOM():
         print("Failed to open COM-Port!")
         return
     if ser.is_open:
-        print("Successfully opened COM-Port: " + ser.port)
+        print("Successfully connected to device on COM-Port: " + ser.port)
         dev_dec = sendrecv("?>")
+        fsG1.enableButtons()
     try:
-        if dev_dec == "FiSpec FBG X100":
+        if dev_dec == "FiSpec FBGX100":
             dev_available=1
             print("Connected to device: " + dev_dec)
             
-        elif dev_dec == "FiSpec FBG X150":
+        elif dev_dec == "FiSpec FBGX150":
             dev_available=1
             print("Connected to device: " + dev_dec)
         else:
@@ -145,7 +126,8 @@ def connectCOM():
         print("Error: No device found!")
         return
     
-    # Configure device after establishing a connection - for further information on commands check FiSens FiSpec Programmer's manual
+    # Configure device after establishing a connection 
+    # For further information on commands check FiSens FiSpec Programmer's manual
     wlconfig() # "Ke,x,y,z>"
     ledON() # "LED,x>"
     checkWL() # "WLL>"
@@ -159,7 +141,12 @@ fsG1.connect_COM_Bt.configure(command=connectCOM)
 def wlconfig():
     # Set peak detection channel details. Use default values first
     # Can be configured by typing user specific wavelength numbers in entry fields
-    global fsG1
+    global fsG1, specIsOn, pausedSpec
+    
+    if specIsOn == True: # while configuring the device, the spectrum should not be running
+        specIsOn == False # pause the spectrum ...
+        pausedSpec=True 
+
     fbg_wavelength[0] = fsG1.setwl_1.get()
     fbg_wavelength[1] = fsG1.setwl_2.get()
     fbg_wavelength[2] = fsG1.setwl_3.get()
@@ -174,10 +161,18 @@ def wlconfig():
         print("Device configured: " + conf_msg) 
         time.sleep(0.5)
 
+    if pausedSpec == True:
+        specIsOn == True # ... restart the spectrum
+        pausedSpec=False # pause ends here
+
 fsG1.setwl_Bt.configure(command=wlconfig)
 
 def ledON():
     # Switches internal light source (0=off, 1= on)
+    global specIsOn, pausedSpec
+    if specIsOn == True:
+        specIsOn == False
+        pausedSpec=True
     try:
         ser.flushInput()
         ser.write("LED,1>".encode())
@@ -186,6 +181,10 @@ def ledON():
         print("Error: LED")
         return
     time.sleep(0.5)
+
+    if pausedSpec == True:
+        specIsOn == True 
+        pausedSpec=False
 
 def checkWL():
     # Get wavelength of pixel list - x-axis of spectrum
@@ -206,7 +205,12 @@ def checkWL():
             pass
     
 def setInternalMode():
-    global internalMode0
+    global internalMode0, specIsOn, pausedSpec
+
+    if specIsOn == True:
+        specIsOn == False
+        pausedSpec=True
+    
     if internalMode0 == False:
         try:
             ser.write("OBB,0>".encode())
@@ -225,11 +229,20 @@ def setInternalMode():
             print("Error: Set internal Measurement Mode")
             pass
         time.sleep(0.5)
+    
+    if pausedSpec == True:
+        specIsOn == True
+        pausedSpec=False
 
 fsG1.toggleMeasMode_Bt.configure(command=setInternalMode)
 
 def startInternal():
     # Globally start measurement
+    global specIsOn, pausedSpec
+    if specIsOn == True:
+        specIsOn == False
+        pausedSpec=True
+    
     try:
         ser.write("a>".encode())
     except:
@@ -237,13 +250,22 @@ def startInternal():
         return
     time.sleep(0.5)
 
+    if pausedSpec == True:
+        specIsOn == True # then start it again
+        pausedSpec=False
+
 def integration():
     # Set integration time
+    global specIsOn, pausedSpec
+    if specIsOn == True:
+        specIsOn == False
+        pausedSpec=True
+
     integration_time=fsG1.intT_In.get()
     try:
         intT_Value=int(integration_time)
     except:
-        print("Not a number!")
+        print("Error: Not a number!")
         return
     if type(intT_Value) == int:
         setIt_msg="iz," + str(integration_time) + ">"
@@ -252,11 +274,20 @@ def integration():
         except:
             print("Error: Set integration time")
             pass
+    
+    if pausedSpec == True:
+        specIsOn == True # then start it again
+        pausedSpec=False
 
 fsG1.intT_Bt.configure(command=integration)
 
 def setChannel():
     # Set number of active Channels
+    global specIsOn, pausedSpec
+    if specIsOn == True:
+        specIsOn == False
+        pausedSpec=True
+
     fbg_count=fsG1.setCh_In.get()
     try:
         fbg_count_value=int(fbg_count)
@@ -270,11 +301,20 @@ def setChannel():
         except:
             print("Error: KA,x> - Set number of active channels")
             pass
+    
+    if pausedSpec == True:
+        specIsOn == True # then start it again
+        pausedSpec=False
 
 fsG1.setCh_Bt.configure(command=setChannel)
 
 def setAveraging():
     #Set averaging
+    global specIsOn, pausedSpec
+    if specIsOn == True:
+        specIsOn == False
+        pausedSpec=True
+    
     aver=fsG1.setAv_In.get()
     try:
         aver_value=int(aver)
@@ -289,10 +329,19 @@ def setAveraging():
             print("Error: Averaging")
             pass
 
+    if pausedSpec == True:
+        specIsOn == True # then start it again
+        pausedSpec=False
+
 fsG1.setAv_Bt.configure(command=setAveraging)
 
 def setZero():
     # Set actual values as zero values
+    global specIsOn, pausedSpec
+    if specIsOn == True:
+        specIsOn == False
+        pausedSpec=True
+    
     setZe_msg="OBN,x>"
     try:
         ser.write(setZe_msg.encode())
@@ -300,16 +349,25 @@ def setZero():
         print("Error: Set Zero Values")
         pass
 
+    if pausedSpec == True:
+        specIsOn == True # then start it again
+        pausedSpec=False
+
 fsG1.setZe_Bt.configure(command=setZero)
 
 def setAutoOpt():
     # Start auto-optimization of integration time / averages
     # If successful, values in entry fields will be overwritten
+    global specIsOn, pausedSpec
+    if specIsOn == True:
+        specIsOn == False
+        pausedSpec=True
+    
     vAO=fsG1.setAO_In.get()
     try:
         vAO_=int(vAO)
     except:
-        print("Not a number!")
+        print("Error: Not a number!")
         return
     if type(vAO_)==int:
         vAO_msg="AO," + str(vAO_) + ">"
@@ -334,6 +392,10 @@ def setAutoOpt():
     fsG1.intT_In.insert(0, str(intT_ao_))
     fsG1.setAv_In.delete(0, 6)
     fsG1.setAv_In.insert(0, val_aver_ao)
+
+    if pausedSpec == True:
+        specIsOn == True # then start it again
+        pausedSpec=False
 
 fsG1.setAO_Bt.configure(command=setAutoOpt)
 
@@ -406,7 +468,7 @@ def ctrlMeas():
         
 fsG1.meas_Bt.configure(command=ctrlMeas)
         
-def createSpectrum():
+def updateSpectrum():
     # Requests data from device and displays it as a spectrum - "s>"-Command
     global fig, ax, canvas, ySpec, xWll
     while 1:
@@ -455,7 +517,7 @@ def createSpectrum():
             else:
                 print("COM-Port is closed. Try again!")
         time.sleep(1)
-    
+
 def ctrlSpec():
     # Toggles Button Start Specrum and sets Variable specIsOn which enables/disables the function
     global specIsOn
@@ -468,9 +530,10 @@ def ctrlSpec():
 
 fsG1.spec_Bt.configure(command=ctrlSpec)
 
-# Create 3 threads which will do work simultaneously
-t_checkCOMs = threading.Thread(target=checkCOMs).start()
+# Create 2 threads which will do work simultaneously
 t_measurement = threading.Thread(target=measurement, daemon=True).start()
-t_createSpectrum = threading.Thread(target=createSpectrum, daemon=True).start()
-
+t_createSpectrum = threading.Thread(target=updateSpectrum, daemon=True).start()
+fsG1.disableButtons() # Disable buttons on first launch
+buildSpectrum() # prepare Spectrum
+checkCOMs() # checking for available COM-Ports
 root.mainloop()

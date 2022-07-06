@@ -1,8 +1,10 @@
 # FiSens FiSpec, GUI Class - Coded with Python. March, 2022
 
 from tkinter import Frame, StringVar, Label, Entry, Button, OptionMenu
+from tkinter import DISABLED
+from tkinter import NORMAL
 import serial.tools.list_ports
-# The GUI class. All tkinter widgets (Frames, Buttons, Labels, etc.) will be defined as attributes in this class.
+# The GUI class. All tkinter widgets (Frames, Buttons, Labels, etc.) are defined as attributes.
 # Also, positioning of those widgets is specified in this class
 class FiSpec_GUI:
     def __init__(self, master):
@@ -12,13 +14,16 @@ class FiSpec_GUI:
         self.frame_COM_select.place(x=5,y=5, width=490, height=40)
 
         self.portObj = StringVar(master)
-        self.portList = ["0"]
+        self.portList = ["COM-Ports"]
         self.portObj.set(self.portList[0])
         self.drop_COM = OptionMenu(self.frame_COM_select, self.portObj, *self.portList)
         self.drop_COM.grid(row=0, column=0)
 
+        self.refreshCOM_Bt = Button(self.frame_COM_select, text="Refresh List")
+        self.refreshCOM_Bt.place(x=150, y=2, width=120)
+
         self.connect_COM_Bt = Button(self.frame_COM_select, text="Connect Port")
-        self.connect_COM_Bt.place(x=150, y=2, width=120)
+        self.connect_COM_Bt.place(x=300, y=2, width=120)
         # ----------
         self.frame_start_meas = Frame(master)
         self.frame_start_meas.place(x=5,y=50, width=490, height=45)
@@ -33,7 +38,8 @@ class FiSpec_GUI:
         self.frame_start_spec.place(x=5,y=100, width=490, height=45)
 
         self.spec_Bt = Button(self.frame_start_spec, text="Start Spectrum")
-        self.spec_Bt.place(x=150, y=2, width=120)   
+        self.spec_Bt.place(x=150, y=2, width=120)  
+
         # ----------
         self.frame_intgt = Frame(master)
         self.frame_intgt.place(x=5,y=150, width=490, height=45)
@@ -139,7 +145,7 @@ class FiSpec_GUI:
         self.setwl_Bt = Button(self.frame_wl, text="Set Wavelengths")
         self.setwl_Bt.place(x=20, y=135, width=120)
 
-    def checkCOMS(self): 
+    def checkCOMs(self): 
         # will be called from thread t_checkCOMs every 2 seconds. Updates the list of COM-Ports shown in the optionsmenu of the GUI
         # first destroy old widget and clear old list
         self.drop_COM.destroy()
@@ -149,7 +155,7 @@ class FiSpec_GUI:
         # and add them to the list
         for onePort in ports:
             self.portList.append(str(onePort)[0:4])
-            self.portObj.set(self.portList[0])
+            # self.portObj.set(self.portList[0])
         # if no devices are found
         if len(self.portList) == 0:
             self.portList.append("No devices found!")
@@ -158,3 +164,23 @@ class FiSpec_GUI:
         # create new optionsmenu and place it in the GUI
         self.drop_COM = OptionMenu(self.frame_COM_select, self.portObj, *self.portList)
         self.drop_COM.grid(row=0, column=0)
+
+    def enableButtons(self):
+        self.toggleMeasMode_Bt.configure(state=NORMAL)
+        self.spec_Bt.configure(state=NORMAL)
+        self.meas_Bt.configure(state=NORMAL)
+        self.intT_Bt.configure(state=NORMAL)
+        self.setCh_Bt.configure(state=NORMAL)
+        self.setAv_Bt.configure(state=NORMAL)
+        self.setAO_Bt.configure(state=NORMAL)
+        self.setZe_Bt.configure(state=NORMAL)
+
+    def disableButtons(self):
+        self.toggleMeasMode_Bt.configure(state=DISABLED)
+        self.spec_Bt.configure(state=DISABLED, text='Start Spectrum')
+        self.meas_Bt.configure(state=DISABLED, text='Start Measurement')
+        self.intT_Bt.configure(state=DISABLED)
+        self.setCh_Bt.configure(state=DISABLED)
+        self.setAv_Bt.configure(state=DISABLED)
+        self.setAO_Bt.configure(state=DISABLED)
+        self.setZe_Bt.configure(state=DISABLED)
